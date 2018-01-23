@@ -1,0 +1,59 @@
+	</div>
+	</div>
+    <div class="page" id="historyDiv"></div>
+    <div class="page" id="validationDiv"></div>
+<div id="completenessDiv" class="page inputCriteria" style="display: block;">
+<input type="button" id="completeButton" name="completeButton" value="Complete" onclick="registerCompleteDataSet()" style="width:120px">
+<input type="button" id="undoButton" name="undoButton" value="Incomplete" onclick="undoCompleteDataSet()" style="width:120px" disabled="disabled">
+<span class="separator">|</span>
+<input type="button" id="validateButton" value="Run validation" onclick="dhis2.de.validate( false )" style="width:120px">
+</div>
+    <div class="page inputCriteria" id="infoDiv" style="display: none;">
+      <span class="tipText">Completed by:</span> <span id="completedBy"></span> <span class="tipText">at:</span> <span id="completedDate"></span> <a href="javascript:displayUserDetails()">See
+      details</a>
+    </div>
+    <div class="page" id="completedByDiv">
+      <h3><span id="userFullName"></span></h3>
+      <table>
+        <tbody>
+          <tr>
+            <td><label>Username:</label></td>
+            <td><span id="userUsername"></span></td>
+          </tr>
+          <tr>
+            <td><label>E-mail:</label></td>
+            <td><span id="userEmail"></span></td>
+          </tr>
+          <tr>
+            <td><label>Mobile phone number:</label></td>
+            <td><span id="userPhoneNumber"></span></td>
+          </tr>
+          <tr>
+            <td><label>Organisation units:</label></td>
+            <td><span id="userOrganisationUnits"></span></td>
+          </tr>
+          <tr>
+            <td><label>User roles:</label></td>
+            <td><span id="userUserRoles"></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="fileDeleteConfirmationDialog">
+      <div class="confirm-dialog-content">
+        <span class="fa fa-exclamation-triangle fa-lg"></span><span>Are you sure you want to delete this file?</span>
+      </div>
+    </div>
+  </div>
+  <script type="text/javascript">
+  </script>
+  <div id="rightBar">
+    <span id="hideRightBar"><a href="javascript:hideHelpContent()" title="Close"><i class="fa fa-times leftBarIcon"></i></a></span>
+    <div id="rightBarContents"></div>
+  </div><select id="selectedDataSetId_storage" style="visibility: hidden;">
+    </select><select id="selectedPeriodId_storage" style="visibility: hidden;">
+    </select><select id="filterDataSetSection_storage" style="visibility: hidden;">
+    </select>
+  <ul class="ui-autocomplete ui-front ui-menu ui-widget ui-widget-content ui-corner-all" id="ui-id-1" style="display: none;" tabindex="0"></ul>
+</body>
+</html>

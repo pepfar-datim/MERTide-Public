@@ -1,0 +1,27 @@
+		<dataSet code="{code}" name="{name}" shortName="{shortname}" id="{uid}">
+			<externalAccess>false</externalAccess>
+			<publicAccess>--------</publicAccess>
+			<periodType>{periodType}</periodType>
+			<categoryCombo id="{categoryCombo}" />
+			<mobile>false</mobile>
+			<version>{version}</version>
+			<expiryDays>83</expiryDays>
+			<timelyDays>15</timelyDays>
+			<notifyCompletingUser>false</notifyCompletingUser>
+			<approveData>{approveData}</approveData>
+			<openFuturePeriods>0</openFuturePeriods>
+			<fieldCombinationRequired>false</fieldCombinationRequired>
+			<validCompleteOnly>true</validCompleteOnly>
+			<noValueRequiresComment>false</noValueRequiresComment>
+			<skipOffline>false</skipOffline>
+			<dataElementDecoration>false</dataElementDecoration>
+			<renderAsTabs>false</renderAsTabs>
+			<renderHorizontally>false</renderHorizontally>
+			<userGroupAccesses>
+				<userGroupAccess>
+					<id>c6hGi8GEZot</id>
+					<access>r-------</access>
+					<displayName>Data SI access</displayName>
+					<userGroupUid>c6hGi8GEZot</userGroupUid>
+				</userGroupAccess>
+			</userGroupAccesses>
