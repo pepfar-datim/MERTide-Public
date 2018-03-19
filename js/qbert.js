@@ -74,6 +74,12 @@ qbert._enable = function (elem) {
  */
 qbert.load = function () {
   var period = qbert.getPeriod();
+  
+  //If the period is not found we are probably not in the data entry app, exit
+  if (period == undefined) {
+      return;
+  }
+  
   //parse the current period
   var re = /20[1-9][0-9]Q([1-4])/; //we don't expect this to be running in 2100
   var found = period.match(re);

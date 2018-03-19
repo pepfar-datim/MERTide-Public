@@ -4,26 +4,28 @@
 #		 ./mertide.py -i merdirectory -d /path/to/disagg/files/ [-n] [-f formuid1234,formid2468] [-h]
 #		 ./mertide.py --input=merform.csv --disaggs=/path/to/disagg/files/ [--noconnection] [--forms="formuid1234,formid2468"] [--help]
 
-# pip install openpyxl
-
-import sys
-import getopt
+import os
+import re
 import csv
+import sys
+import copy
+import json
+import zlib
+import base64
+import getopt
 import random
 import string
-import re
-import os
+import urllib
+import hashlib
+import zipfile
+import operator
+import requests
+from pprint import pprint
 from collections import defaultdict
 from xml.sax.saxutils import escape
-import zipfile
-import zlib
-import hashlib
-import base64
-import requests
-import json
-import operator
-from pprint import pprint
 
+# Output logging information to the screen and to logFile
+# logFile is updated as the script runs, instead of only being complete at the end
 def log(line, level = False):
 	if level == 'warn':
 		prefix = 'Warning: '
@@ -38,13 +40,14 @@ def log(line, level = False):
 	logFile.flush()
 	os.fsync(logFile.fileno())
 
-# Removes files with funny names
+# Remove files with funny names
 def filenameChecker(filename):
 	bumFiles=['.DS_Store']
 	if filename in bumFiles:
 		return False
 	return True
 
+# Check to see if a string is a properly formatted DHIS 2 uid
 def isDhisUid(string):
 	if (len(string) != 11):
 		return False
@@ -54,7 +57,7 @@ def isDhisUid(string):
 		return False
 	return True
 
-# Finds a data element, either using the dataElementCache or DHIS 2
+# Find a data element, either using the dataElementCache or DHIS 2
 def getDataElement(uid, optionCombo=False):
 	if uid not in dataElementCache:
 		d = requests.get(api + 'dataElements.json', cookies=jsessionid,
@@ -73,21 +76,21 @@ def getDataElement(uid, optionCombo=False):
 		log('Data element ' + uid + ' is missing on ' + config['dhis']['baseurl'], 'warn')
 	return d
 
+# Generate a random uid
 def makeUid():
 	uid = random.choice(string.ascii_letters)
 	for i in range(0, 10):
 		uid += random.choice(string.ascii_letters+'0123456789')
 	return uid
 
-# return 5+input char ssid. This should be max 8 total, #TODO, limit returned result to 8 chars.
+# Return 5+input char ssid
 def makeSsid(htabType):
 	ssid = random.choice(string.ascii_letters)
 	for i in range(0, 4):
 		ssid += random.choice(string.ascii_letters+'0123456789')
 	return ssid + htabType
 
-# Make an SSID using a hash that conforms to the SSIDs
-# The SSID must be deterministic, so no random functions are used
+# Generate an SSID deterministically from a unique string, using sha
 def makeSsidHash(uniqueName, htabType):
 	sha = hashlib.sha1((uniqueName).encode())
 	num = int(sha.hexdigest(), 16)
@@ -99,7 +102,8 @@ def makeSsidHash(uniqueName, htabType):
 	uid += htabType
 	return uid
 
-def makeUidHash(s): # Generate a UID deterministcally from a unique string.
+# Generate a UID deterministcally from a unique string, using sha
+def makeUidHash(s): 
 	if s=='':
 		return 'NotAUID'
 	hashBytes = bytearray(hashlib.sha256((s).encode()).digest())
@@ -108,6 +112,7 @@ def makeUidHash(s): # Generate a UID deterministcally from a unique string.
 		uid += (string.ascii_letters+string.digits)[hashBytes[i] % 62]
 	return uid
 
+# Turn string s into a name that's safe for metadata usage
 def safeName(s):
 	s = s.replace('<', '_lt_') \
 		.replace('>', '_gt_') \
@@ -117,9 +122,9 @@ def safeName(s):
 	s = re.sub('_$', '', s)
 	return s.lower()
 	
+# Same as safeName, but make it all uppercase as well
 def codeName(s):
-	s = safeName(s)
-	return s.upper()
+	return safeName(s).upper()
 
 # Within a vertical tab, find which horizontal tabs are present.
 def findHtabs(vtab):
@@ -151,6 +156,8 @@ def addDataElement(form, uid, groups, categoryCombo = False):
 	if categoryCombo:
 		catComboCache[uid] = categoryCombo
 
+# Determine whether any of a category option combo's category options are found
+# within a category
 def findCo(category, coc):
 	for option in category:
 		for co in coc['categoryOptions']:
@@ -221,26 +228,71 @@ def getCoc(name, element):
 	else:
 		return cocCache[name + '_' + element]
 
+def getUids(term, suffix, alluids, uidCache):
+	if term == 'R':
+		return alluids
+	elif (term + '_' + suffix) in uidCache:
+		return uidCache[term + '_' + suffix]
+	else:
+		return []
+
+# Given a MERtide expression, returns an array of MERtide expressions
+# Used to split MERtide expressions with the command "options"
+# e.g., R.options:"25-29","30-34" will become R.option:"25-29"+R.option:"30-34"
+def splitMertideExpression(expression):
+	a = []
+	if '.options:' in expression:
+		try:
+			r = re.compile(r'(.+)\.options\:\s*\"([^:]+)\"(.*)')
+			s = r.search(expression)
+			for e in s.group(2).split('","'):
+				a.append(s.group(1) + '.option:"' + e + '"' + s.group(3))
+		except:
+			log('Syntax error: ' + expression + ' has an option that cannot be parsed', 'warn')
+			return
+
+	b = []
+	for i in a:
+		if '.options:' in i:
+			b.extend(splitMertideExpression(i))
+		else:
+			b.append(i)
+	if b:
+		return(b)
+	else:
+		return([expression])
+
+# Given a MERtide expression, returns an array of parsed expression, data element, 
+# category option, category options list, and category option combo
 def parseMertideExpression(expression):
-	# a, the variable to be returned, is an array of parsed expression, data element, 
-	# category option, and category option combo
-	a = [expression.strip(' '), False, [], []]
+	# a is the variable to be returned, the array mentioned above
+	a = [urllib.parse.unquote(expression).strip(' '), False, [], [], []]
 	while '.optionCombo:' in a[0]:
 		try:
 			r = re.compile(r'(.+)\.optionCombo\:\s*\"(.*)\"')
 			s = r.search(a[0])
-			a[3].append(s.group(2)) # category option combos
+			a[4].append(s.group(2)) # category option combos
 			a[0] = s.group(1)
 		except:
 			log('Syntax error: ' + a[0] + ' has an option combo that cannot be parsed', 'warn')
 			break
 
+	while '.options:' in a[0]:
+		try:
+			r = re.compile(r'(.+)\.options\:\s*([^:\.]*)(.*)')
+			s = r.search(a[0])
+			a[3].append(s.group(2)) # options lists
+			a[0] = s.group(1) + s.group(3)
+		except:
+			log('Syntax error: ' + a[0] + ' has options that cannot be parsed', 'warn')
+			break
+
 	while '.option:' in a[0]:
 		try:
-			r = re.compile(r'(.+)\.option\:\s*\"(.*)\"')
+			r = re.compile(r'(.+)\.option\:\s*\"([^:]*)\"(.*)')
 			s = r.search(a[0])
 			a[2].append(s.group(2)) # category options
-			a[0] = s.group(1)
+			a[0] = s.group(1) + s.group(3)
 		except:
 			log('Syntax error: ' + a[0] + ' has an option that cannot be parsed', 'warn')
 			break
@@ -256,42 +308,152 @@ def parseMertideExpression(expression):
 
 	return a
 
-# Adds an expression to a validation rule and returns the modified validation rule
-def addExpression(j, side, first, sideData):
-	if first:
-		j[side]['description'] = 'Value'
-		j[side]['expression'] = ''
-	else:
-		j['name'] += ' + '
+# Given a MERtide expression, returns an array of [vr, js, missingValue] where 
+# vr is an array of operands for validation rules, js is an array of operands for javascript, 
+# and missingValue is our sense of what to give DHIS2 for the missing value rule
+def processMertideExpression(expression, rule, missingValue, which, uidCache, skipCache, dataElementCache):
+	vr = []
+	js = []
+	names = []
+	[ignore, operator, ignore2, suffix, alluids, allssids, priority, ruleText, ignore3] = rule
+	if '+' in expression:
+		termsNotSplit = expression.split('+')
+	else: 
+		termsNotSplit = [expression]
+
+	for terms in termsNotSplit:
+		for term in splitMertideExpression(terms):
+			termnames = []
+			[term, element, options, ignore, optionCombos] = parseMertideExpression(term)
+
+			try:
+				if operator == 'autocalculate' or operator == 'exclusive_pair':
+					if element:
+						log('Syntax error: de' + str(element) + ' appears in ' + which + ' expression, but not supported for ' + operator + ' in ' + ruleText, 'warn')
+
+					if term == 'R':
+						ssids = allssids
+						uids = alluids
+					else:
+						ssids = [makeSsidHash(term, suffix)]
+						uids = uidCache[term + '_' + suffix]
+
+					for i in range(len(ssids)):
+						if options:
+							cocs = getCocsFromOptions(options, uids[i])
+							js.append([ssids[i], cocs])
+						elif optionCombos:
+							for coc in optionCombos:
+								optionCombo = getCoc(coc, uids[i])
+								js.append([ssids[i], [optionCombo]])
+						else:
+							js.append([ssids[i]])
+
+				if operator != 'autocalculate':
+					uids = getUids(term, suffix, alluids, uidCache)
+
+					if element:
+						uids = [uids[element-1]]
+					for u in uids:
+						if options:
+							cocs = getCocsFromOptions(options, u)
+							for coc in cocs:
+								vr.append(getDataElement(u, coc).copy())
+
+							termnames.append(getDataElement(u, False)['shortName'] + ' option ' + ' and option '.join(options))
+
+							if optionCombos:
+								log('Syntax error: optionCombo used at the same time as option or options in rule ' + ruleText, 'warn')
+
+						else:
+							if optionCombos:
+								for coc in optionCombos:
+									vr.append(getDataElement(u, coc).copy())
+								termnames.append(dataElementCache[u]['shortName'] + ' option combo ' + 'and option combo '.join(optionCombos))
+							else:
+								vr.append(getDataElement(u, False).copy())
+								termnames.append(getDataElement(u, False)['shortName'])
+
+					if missingValue != 'NEVER_SKIP' and operator != 'exclusive_pair':
+						q = term
+						if term == 'R':
+							q = priority
+						elif term in skipCache:
+							q = skipCache[term]
+
+						if q in skip:
+							missingValue = 'SKIP_IF_ALL_VALUES_MISSING'
+						elif q in neverskip:
+							missingValue = 'NEVER_SKIP'
+						else:
+							log('Syntax error: ' + q + ' not associated with missing value strategy for rule ' + ruleText, 'warn')
+
+			except Exception as e:
+				log('Syntax error: Problem compiling ' + which + ' expression in ' + ruleText, 'warn')
+
+		if operator != 'autocalculate':
+			if '.options:' in terms:
+				[term, element, options, optionses, optionCombos] = parseMertideExpression(terms)
+
+				uids = getUids(term, suffix, alluids, uidCache)
+
+				if element:
+					uids = [uids[element-1]]
+				for u in uids:
+					suffix = ' options ' + ' and options '.join(optionses).replace('","', ', ').replace('"', '')
+					if options:
+						suffix = suffix + ' and option ' + ' and option '.join(options)
+					names.append(getDataElement(u, False)['shortName'] + suffix)
+			else:
+				names.extend(termnames)
+
+	return [vr, js, names, missingValue]
+
+# Add an expression to a validation rule and returns the modified validation rule
+def addExpression(j, side, sideData):
+	if ('description' in j[side]):
 		j[side]['description'] += ' + value'
 		j[side]['expression'] += '+'
+	else:
+		j[side]['description'] = 'Value'
+		j[side]['expression'] = ''
 
 	j[side]['dataElements'].add(sideData['id'])
 
 	if (sideData['optionCombo']):
-		j['name'] += sideData['shortName'] + ' / ' + cocCache2[sideData['optionCombo']]
 		j[side]['description'] += ' of element ' + sideData['id'] + ' (' + sideData['name'] + ') / ' + cocCache2[sideData['optionCombo']]
 		j[side]['expression'] += '#{' + sideData['id'] + '.' + sideData['optionCombo'] + '}'
 	else:
-		j['name'] += sideData['shortName']
 		j[side]['description'] += ' of element ' + sideData['id'] + ' (' + sideData['name'] + ')'
 		j[side]['expression'] += '#{' + sideData['id'] + '}'
 
 	return j
 
+# Given an array of elements, turn it into an array of hashes of {'id': element}
 def reformatDataElements(elements):
 	a = []
 	for e in elements:
 		a.append({'id': e})
 	return a
 
+# Create a string from an expression, in which two equivalent expressions will have the same string
+#
+# Note that in very rare circumstances, will give a false positive; for instance,
+# {#aaaaaaaaaaa}+{#bbbbbbbbbbb} will be considered to be the same as {#aaaaaaaaaab}+{#abbbbbbbbbb}
+# Hopefully that never occurs in practice!
+def hashExpression(expression):
+	return ''.join(sorted(expression))
+
+# Create a string from a rule, in which two equivalent rules will have the same string
+# Deals with the situation of a + b <= c + d being the same as b + a <= d + c
+# as well as a + b <= c + d being the same as c + d >= a + b
 def hashRule(rule):
 	try:
 		# Sort both left and right expressions by character, 
 		# so if two expressions add terms in different orders,
 		# they will still match
-		l = ''.join(sorted(rule['leftSide']['expression']))
-		r = ''.join(sorted(rule['rightSide']['expression']))
+		l = hashExpression(rule['leftSide']['expression'])
+		r = hashExpression(rule['rightSide']['expression'])
 		
 		# Change greater_thans to less_thans
 		o = rule['operator']
@@ -306,21 +468,40 @@ def hashRule(rule):
 		return l + o + r
 
 	except KeyError:
-		log('Could not evaluate either the left or right side of rule ' + rule['description'], 'warn')
+		e = []
+		if 'leftSide' not in rule:
+			e.append('left side missing')
+		elif 'expression' not in rule['leftSide']:
+			e.append('left side expression missing')
+
+		if 'rightSide' not in rule:
+			e.append('right side missing')
+		elif 'expression' not in rule['rightSide']:
+			e.append('right side expression missing')
+
+		if e:
+			log('Due to ' + ' and '.join(e) + ', could not evaluate rule ' + rule['description'], 'warn')
+		else:
+			log('Could not evaluate either the left or right side of rule ' + rule['description'], 'warn')
+
+		return False
+
+def encodeQuote(quote):
+	return '"' + urllib.parse.quote(quote[0][1:-1]) + '"'
 
 # Make and output a form. This is the core work.
 def makeForm(form):
 	formFileName = safeName(form['name'])
 	form['formDataElements'] = set([])
 	outputHTML = htmlBefore
-	#print ('vtabRowsList:', vtabRowsList)
 
 	# Build major navigation (vtab navigation)
 	vtabNames = []
-	autocalcjs = ''
+	dynamicjs = ''
 	degs = {}
 	uidCache = {}
 	uidCache2 = []
+	warnUidCache = []
 	skipCache = {}
 	rules = []
 	for i in range(len(form['vtabs'])):
@@ -372,8 +553,9 @@ def makeForm(form):
 
 							for u in [uid1, uid2, uid3]:
 								if u and u != 'null':
-									if u in uidCache2:
-										log('The uid ' + u + ' appears multiple times', 'severe')
+									if u in uidCache2 and u not in warnUidCache:
+										log('The uid ' + u + ' appears multiple times', 'warn')
+										warnUidCache.append(u)
 									addDataElement(form, u, form['dataElementGroups'], ccs[u])
 									uids.append(u)
 									uidCache2.append(u)
@@ -388,30 +570,19 @@ def makeForm(form):
 								ssid = makeSsid(htab['uidsuffix'])
 								uidCache[ssid] = uids
 
-							if row['ctl_exclusive']:
-								# FIXME: Maybe cache ssid hashes
-								mewid = makeSsidHash(row['ctl_exclusive'], htab['uidsuffix'])
-								mewid = ' mew_' + mewid
-								left = 'R'
-								action = 'exclusive_pair'
-								right = row['ctl_exclusive']
-								rules.append([left, action, right, htab['uidsuffix'], uids, '', 'ctl_exclusive row ' + row['ctl_exclusive'], '', form['periodType']])
-							else:
-								mewid = ''
-
 							if row['ind_top_level']:
 								if row['ind_top_level'] not in topLevelIndicators:
 									topLevelIndicators[row['ind_top_level']] = {}
 								for u in uids:
 									topLevelIndicators[row['ind_top_level']][u] = True
 								
-							subIndicatorsHTML += '<div class="si_' + ssid + mewid + '">\n'
+							subIndicatorsHTML += '<div class="si_' + ssid + '">\n'
 							if not('autocalc' in row['sub_disagg'] and 'wide' in row['sub_disagg']):
 								ssids = [ssid]
 								subIndicatorsHTML += open(comboDir + row['sub_disagg'] + '.html').read().format(
 									priority=row['sub_priority'], priority_css='PEPFAR_Form_Priority_'+safeName(row['sub_priority']), 
 									description=row['sub_heading'], description2=row['sub_text'], 
-									ssid=ssid, mew=mewid, deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
+									ssid=ssid, deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
 							else:
 								ssids = [ssid, makeSsid(htab['uidsuffix']), makeSsid(htab['uidsuffix']), makeSsid(htab['uidsuffix'])]
 								if (';' in row['sub_text']):
@@ -422,35 +593,52 @@ def makeForm(form):
 								subIndicatorsHTML += open(comboDir + row['sub_disagg'] + '.html').read().format(
 									priority=row['sub_priority'], priority_css='PEPFAR_Form_Priority_'+safeName(row['sub_priority']), 
 									description=row['sub_heading'], sub_text_1=sub_text_1, sub_text_2=sub_text_2, sub_text_3=sub_text_3,
-									ssid1=ssids[1], ssid2=ssids[2], ssid3=ssids[3], mew=mewid, deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
+									ssid1=ssids[1], ssid2=ssids[2], ssid3=ssids[3], deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
+
+							if row['ctl_exclusive']:
+								left = 'R'
+								action = 'exclusive_pair'
+								exclusions = row['ctl_exclusive'].split(';')
+								for e in exclusions:
+									rules.append([left, action, e, htab['uidsuffix'], uids, ssids, row['sub_priority'], 'ctl_exclusive ' + e + ' from row ' + row['ctl_exclusive'], form['periodType']])
 
 							if row['ctl_rules']:
+								if '"' in row['ctl_rules']:
+									row['ctl_rules'] = re.sub('"[^"]*"', encodeQuote, row['ctl_rules'])
+
 								if ';' in row['ctl_rules']:
 									rs = row['ctl_rules'].split(';')
 								else: 
 									rs = [row['ctl_rules']]
+
 								for r in rs:
-									if ('=' not in r):
-										log('Syntax error: Cannot compile rule ' + r + ' as it is missing equals sign', 'warn')
+									operator = False
+									if ('>=' in r):
+										operator = '>='
+										action = 'greater_than_or_equal_to'
+									elif ('<=' in r):
+										operator = '<='
+										action = 'less_than_or_equal_to'
+									elif ('=' in r):
+										operator = '='
+										action = 'autocalculate'
+									elif ('!!!' in r):
+										operator = '!!!'
+										action = 'exclusive_pair'
 									else:
+										log('Syntax error: Cannot compile rule ' + urllib.parse.unquote(r) + ' as it does not have an operator (=, <=, >=, !!!)', 'warn')
+
+									if operator:
 										# Save the rules to process later in the script
-										a = r.split('=')
+										a = r.split(operator)
 										left = a[0]
 										right = a[1].strip(' ')
-										if (re.search('[^A-Za-z0-9\_\-\s\.\:\"\/\(\)\<\>]', left)):
-											log('Syntax error: Rule ' + r + ' cannot be compiled as it either uses an illegal operator (=, <= or >= allowed) or the left expression has illegal characters (letters, numbers, spaces, parens, and certain symbols ("._-:/) allowed)', 'warn')
-										elif (re.search('[^A-Za-z0-9\_\-\s\.\:\"\/\(\)\+]', right)):
-											log('Syntax error: Rule ' + r + ' cannot be compiled as it either uses an illegal operator (=, <= or >= allowed) or the right expression has illegal characters (letters, numbers, spaces, parens, and certain symbols ("._-:/+) allowed)', 'warn')
-										elif (left[-1:] == '<'):
-											action = 'less_than_or_equal_to'
-											left = left.strip('< ')
-											rules.append([left, 'less_than_or_equal_to', right, htab['uidsuffix'], uids, [], row['sub_priority'], 'ctl_rules row ' + r, form['periodType']])
-										elif (left[-1:] == '>'):
-											action = 'greater_than_or_equal_to'
-											left = left.strip('> ')
-											rules.append([left, 'greater_than_or_equal_to', right, htab['uidsuffix'], uids, [], row['sub_priority'], 'ctl_rules row ' + r, form['periodType']])
+										if (re.search('[^A-Za-z0-9\_\-\+\%\s\.\,\:\"\/\(\)]', left)):
+											log('Syntax error: Rule ' + urllib.parse.unquote(r) + ' cannot be compiled as it either uses an illegal operator (=, <=, >= or !!! allowed) or the left expression has illegal characters (letters, numbers, spaces, parens, and certain symbols (".,_-:/+%) allowed)', 'warn')
+										elif (re.search('[^A-Za-z0-9\_\-\+\%\s\.\,\:\"\/\(\)]', right)):
+											log('Syntax error: Rule ' + urllib.parse.unquote(r) + ' cannot be compiled as it either uses an illegal operator (=, <=, >= or !!! allowed) or the right expression has illegal characters (letters, numbers, spaces, parens, and certain symbols (".,_-:/+%) allowed)', 'warn')
 										else:
-											rules.append([left, 'autocalculate', right, htab['uidsuffix'], uids, ssids, row['sub_priority'], 'ctl_rules row ' + r, ''])
+											rules.append([left, action, right, htab['uidsuffix'], uids, ssids, row['sub_priority'], 'ctl_rules row ' + urllib.parse.unquote(r), form['periodType']])
 
 							for x in range(1, 3):
 								j = 'degs' + str(x)
@@ -476,212 +664,123 @@ def makeForm(form):
 		outputHTML += minorNavHTML_end
 
 	if not(noconnection):
-		for z in rules:
+		for rule in rules:
 			# Get validation rule period
-			rulePeriod = z[8]
+			rulePeriod = rule[8]
 		
-			# Process left side
-			a = parseMertideExpression(z[0])
-			leftElement = a[1]
-			leftOptions = a[2]
-			leftOptionCombos = a[3]
+			[left, leftjs, leftnames, ignore] = processMertideExpression(rule[0], rule, False, 'left', uidCache, skipCache, dataElementCache)
+			[right, rightjs, rightnames, rightMissingValue] = processMertideExpression(rule[2], rule, False, 'right', uidCache, skipCache, dataElementCache)
 
-			right = []
-			rightMissingValue = False
-
-			if '+' in z[2]:
-				rightTerms = z[2].split('+')
-			else: 
-				rightTerms = [z[2]]
-
-			for t in range(len(rightTerms)):
-				a = parseMertideExpression(rightTerms[t])
-				rightTerms[t] = a[0]
-				rightElement = a[1]
-				rightOptions = a[2]
-				rightOptionCombos = a[3]
-
-				try:
-					if z[1] == 'autocalculate':
-						if rightTerms[t] == 'R':
-							rssid = z[5]
-						else:
-							rssid = makeSsidHash(rightTerms[t], z[3])
-
-						uids = uidCache[rightTerms[t] + '_' + z[3]]
-						for uid in uids:
-							if rightOptions:
-								cocs = getCocsFromOptions(rightOptions, uid)
-								right.append([rssid, cocs])
-							elif rightOptionCombos:
-								for coc in rightOptionCombos:
-									rightOptionCombo = getCoc(coc, uid)
-									right.append([rssid, [rightOptionCombo]])
-							else:
-								right.append([rssid])
-								break
-
-					else:
-						if rightTerms[t] == 'R':
-							ruids = z[4]
-						elif (rightTerms[t] + '_' + z[3]) in uidCache:
-							ruids = uidCache[rightTerms[t] + '_' + z[3]]
-						else:
-							ruids = []
-						if rightElement:
-							ruids = [ruids[rightElement-1]]
-						for r in ruids:
-							if rightOptions:
-								cocs = getCocsFromOptions(rightOptions, r)
-								for coc in cocs:
-									right.append(getDataElement(r, coc).copy())
-							else:
-								if rightOptionCombos:
-									for coc in rightOptionCombos:
-										right.append(getDataElement(r, coc).copy())
-								else:
-									right.append(getDataElement(r, False).copy())
-
-						if rightMissingValue != 'NEVER_SKIP':
-							q = rightTerms[t]
-							if rightTerms[t] == 'R':
-								q = z[6]
-							elif rightTerms[t] in skipCache:
-								q = skipCache[rightTerms[t]]
-
-							if q in skip:
-								rightMissingValue = 'SKIP_IF_ALL_VALUES_MISSING'
-							elif q in neverskip:
-								rightMissingValue = 'NEVER_SKIP'
-							else:
-								log('Syntax error: ' + q + ' not associated with missing value strategy for rule ' + z[7], 'warn')
-
-				except Exception as e: 
-					log('Syntax error: Problem compiling right expression in ' + z[7], 'warn')
-
-			if right:
-				if z[1] == 'autocalculate':
-					if not(leftElement):
-						left = z[5][0]
-					else:
-						left = z[5][leftElement]
-					autocalcjs += "\tstella.autocalc('" + left + "', " + str(right) + ");\n"
+			if right or rightjs:
+				if rule[1] == 'autocalculate':
+					dynamicjs += "                stella.autocalc(" + str(rightjs) + ", " + str(leftjs) + ");\n"
 
 				else:
-					left = []
-					try:
-						luids = z[4]
-						if leftElement:
-							luids = [luids[leftElement-1]]
-						for l in luids:
-							if leftOptions:
-								cocs = getCocsFromOptions(leftOptions, l)
-								for coc in cocs:
-									left.append(getDataElement(l, coc).copy())
-							else:
-								if leftOptionCombos:
-									for coc in leftOptionCombos:
-										left.append(getDataElement(l, coc).copy())
-								else:
-									left.append(getDataElement(l, False).copy())
-
-					except Exception as e:
-						log('Syntax error: Problem compiling left expression in ' + z[7], 'warn')
-						left = [{}]
-
 					if left != [{}] and right != [{}]:
 						j = {}
 						j['importance'] = 'MEDIUM'
 						j['ruleType'] = 'VALIDATION'
 						j['periodType'] = rulePeriod
-						j['operator'] =  z[1]
+						j['operator'] =  rule[1]
 						j['leftSide'] = {}
 						j['rightSide'] = {}
 						j['leftSide']['dataElements'] = set([])
 						j['rightSide']['dataElements'] = set([])
-						j['name'] = ''
-						j['leftSide']['description'] = ''
-						j['rightSide']['description'] = ''
 
 						for l in left:
-							j = addExpression(j, 'leftSide', not(j['name']), l)
+							j = addExpression(j, 'leftSide', l)
 
-						if j['operator'] == 'less_than_or_equal_to' or j['operator'] == 'greater_than_or_equal_to' :
+						if j['operator'] == 'less_than_or_equal_to' or j['operator'] == 'greater_than_or_equal_to':
 							if j['operator'] == 'less_than_or_equal_to':
-								j['name'] += ' <= '
+								j['name'] = ' <= '
 							else:
-								j['name'] += ' >= '
+								j['name'] = ' >= '
 
-							if z[6] in skip:
+							if rule[6] in skip:
 								j['leftSide']['missingValueStrategy'] = 'SKIP_IF_ALL_VALUES_MISSING'
 							else:
 								j['leftSide']['missingValueStrategy'] = 'NEVER_SKIP'
-								if z[6] not in neverskip:
-									log('Syntax error: ' + z[6] + ' not associated with missing value strategy for rule ' + z[7], 'warn')
+								if rule[6] not in neverskip:
+									log('Syntax error: ' + rule[6] + ' not associated with missing value strategy for rule ' + rule[7], 'warn')
 							j['rightSide']['missingValueStrategy'] = 'NEVER_SKIP'
 
 							if rightMissingValue:
 								j['rightSide']['missingValueStrategy'] = rightMissingValue
 							else:
-								log('Error: Unable to identify missing value strategy for right side of rule ' + z[7] + '; defaulting to NEVER_SKIP', 'warn')
+								log('Error: Unable to identify missing value strategy for right side of rule ' + rule[7] + '; defaulting to NEVER_SKIP', 'warn')
 								j['rightSide']['missingValueStrategy'] = 'NEVER_SKIP'
 
 						elif j['operator'] == 'exclusive_pair':
-							j['name'] += ' :exclusive: '
+							j['name'] = ' :OR: '
 							j['leftSide']['missingValueStrategy'] = 'SKIP_IF_ALL_VALUES_MISSING'
 							j['rightSide']['missingValueStrategy'] = 'SKIP_IF_ALL_VALUES_MISSING'
 
-						firstRight = True
-
 						for r in right:
-							j = addExpression(j, 'rightSide', firstRight, r)
-							firstRight = False
+							j = addExpression(j, 'rightSide', r)
+
+						j['name'] = ' + '.join(leftnames) + j['name'] + ' + '.join(rightnames)
 
 						j['description'] = j['name']
 						j['instruction'] = j['name']
 						j['leftSide']['dataElements'] = reformatDataElements(j['leftSide']['dataElements'])
 						j['rightSide']['dataElements'] = reformatDataElements(j['rightSide']['dataElements'])
 						h = hashRule(j)
-						if h in rulesCache:
-							j['id'] = rulesCache[h]
-						else:
-							j['id'] = makeUid()
-						
-						# Shorten the name if it's over 230 chars
-						j['name'] = j['name'][0:230]
-						
-						# Shorten the descriptions if they are over 255 chars
-						j['leftSide']['description'] = j['leftSide']['description'][0:255]
-						j['rightSide']['description'] = j['rightSide']['description'][0:255]
-						
-						rulesCache[h] = 'used'
-
-						# Only add each rule once
-						if j['id'] != 'used':
-							if h in dhisRulesCache:
-								modified = False
-								for key in dhisRulesCache[h]:
-									if key == 'leftSide' or key == 'rightSide':
-										for key2 in dhisRulesCache[h][key]:
-											if dhisRulesCache[h][key][key2] != j[key][key2]:
-												modified = True
-												break
-									else:
-										if dhisRulesCache[h][key] != j[key]:
-											modified = True
-									if modified:
-										break
-								if modified:
-									modifiedRules.append(j)
-								else:
-									oldRules.append(j)
+						if h:
+							if h in rulesCache:
+								j['id'] = rulesCache[h]
 							else:
-								newRules.append(j)
+								if j['operator'] == 'exclusive_pair':
+									k = copy.deepcopy(j)
+									k['leftSide']['expression'] = j['rightSide']['expression']
+									k['rightSide']['expression'] = j['leftSide']['expression']
+									h = hashRule(k)
+									if h in rulesCache:
+										j['id'] = rulesCache[h]
+									else:
+										j['id'] = makeUid()
+								else:
+									j['id'] = makeUid()
+							
+							# Shorten the name if it's over 230 chars
+							j['name'] = j['name'][0:230]
+							
+							# Shorten the descriptions if they are over 255 chars
+							j['leftSide']['description'] = j['leftSide']['description'][0:255]
+							j['rightSide']['description'] = j['rightSide']['description'][0:255]
+							
+							rulesCache[h] = 'used' + form['uid']
+
+							# Only add each rule once to DHIS 2
+							if not(j['id'].startswith('used')):
+								if h in dhisRulesCache:
+									modified = False
+									for key in dhisRulesCache[h]:
+										if key == 'leftSide' or key == 'rightSide':
+											for key2 in dhisRulesCache[h][key]:
+												if (dhisRulesCache[h][key][key2] != j[key][key2] and 
+														(key2 != 'expression' or hashExpression(dhisRulesCache[h][key][key2]) != hashExpression(j[key][key2]))):
+													modified = True
+													break
+										else:
+											if dhisRulesCache[h][key] != j[key]:
+												modified = True
+										if modified:
+											break
+									if modified:
+										modifiedRules.append(j)
+									else:
+										oldRules.append(j)
+								else:
+									newRules.append(j)
+
+							if j['operator'] == 'exclusive_pair':
+								dynamicjs += "                meany.autoexclude(" + str(leftjs) + ", " + str(rightjs) + ");\n"
+
 					else:
 						if left == [{}]:
-							log('Syntax error: Left expression appears empty after processing in ' + z[7], 'warn')
+							log('Syntax error: Left expression appears empty after processing in ' + rule[7], 'warn')
 						if right == [{}]:
-							log('Syntax error: Right expression appears empty after processing in ' + z[7], 'warn')
+							log('Syntax error: Right expression appears empty after processing in ' + rule[7], 'warn')
 
 		for i in degs:
 			try:
@@ -699,11 +798,12 @@ def makeForm(form):
 
 
 	# Set special JS extras
-	outputHTML = outputHTML.replace("//#dataValuesLoaded#", '\n' + autocalcjs) #cannot use format here because all the curly braces {} in the javascript and css
+	outputHTML = outputHTML.replace("//#dataValuesLoaded#", '\n' + dynamicjs) #cannot use format here because all the curly braces {} in the javascript and css
 	#outputHTML = outputHTML.replace("//#formReady#","") 
 	#outputHTML = outputHTML.replace("//#dataValueSaved#","") 
 
-	outputHTML += majorNavHTML_end+'<!-- End Custom DHIS 2 Form -->\n\n'
+	outputHTML += open(setuptabsHTML).read()
+	outputHTML += majorNavHTML_end + '<!-- End Custom DHIS 2 Form -->\n\n'
 
 	# Create the standalone form preview file
 	if severe:
@@ -724,17 +824,17 @@ def makeForm(form):
 		.format(code=codeName(form['shortshortname']), name=form['name'], shortname=form['shortshortname'], uid=form['uid'], periodType=form['periodType'],
 				categoryCombo=form['categoryCombo'], version=form['version'], approveData=form['approveData'] )
 
-#   2.21 to 2.24
-#   dataElements = '			<dataElements>\n'
-#   for id in form['formDataElements']:
-#	   dataElements += '			   <dataElement id="' + id + '" />\n'
-#   dataElements += '		   </dataElements>\n'
+	#   2.21 to 2.24
+	#   dataElements = '			<dataElements>\n'
+	#   for id in form['formDataElements']:
+	#	   dataElements += '			   <dataElement id="' + id + '" />\n'
+	#   dataElements += '		   </dataElements>\n'
 
 	#2.25 updates
 	dataElements = '			<dataSetElements>\n'
 	for id in form['formDataElements']:
 		dataElements += '			   <dataSetElement>\n'
-#	   dataElements += '				   <externalAccess>false</externalAccess>\n'
+	#   dataElements += '				   <externalAccess>false</externalAccess>\n'
 		dataElements += '				   <dataElement id="' + id + '" />\n'
 		dataElements += '				   <dataSet id="' + form['uid'] + '" />\n'
 		if id in catComboCache:
@@ -763,7 +863,7 @@ def makeForm(form):
 			dataElements +
 			'	   </dataSet>\n')
 
-
+# Remove white space from all keys in a row
 def stripWhiteSpace(row):
 	for key in row:
 		if isinstance(row[key], str):
@@ -827,7 +927,7 @@ def doControlFile(controlFileName):
 				log('Error in ' + controlFileName + ': unexpected type' + type + '.', 'warn')
 		makeForm(form)
 
-# Function to write dataElementGroups to an export file
+# Write dataElementGroups to an export file
 def writeDataElementGroups(out):
 	out.write('	<dataElementGroups>\n')
 	for group, uids in dataElementGroups.items():
@@ -841,6 +941,7 @@ def writeDataElementGroups(out):
 		out.write('		</dataElementGroup>\n')
 	out.write('	</dataElementGroups>\n')
 
+# Format indicator into XML
 def formatIndicator(key, value):
 	code = key.upper().replace(' ', '_')
 	uid = makeUidHash('datimIndicator' + key)
@@ -865,8 +966,8 @@ def formatIndicator(key, value):
 	r += '	    </indicator>\n'
 	return(r)
 
-def main(argv):
-	
+# The main function
+def main(argv):	
 	sysargs = ['','','',False,'']
 	usage = 'usage: mertide.py -i [merform.csv|merdirectory] -d /path/to/disagg/files/ [options]\n  options:\n    -n, --noconnection Parse CSV even if there is no connection to DHIS2\n    -f formuid1234,formid2468, [--forms=formuid1234,formid2468]\n	Only include forms with uid formuid1234 and formuid2468\n    -h,--help Prints this message'
 	
@@ -884,7 +985,7 @@ def main(argv):
 			if sysargs[0] == '' and sysargs[1] == '':
 				if os.path.isdir(arg):
 					sysargs[0] = arg
-				elif not os.path.isfile(arg):
+				elif os.path.isfile(arg):
 					sysargs[1] = arg
 				else:
 					log('Input argument (' + arg + ') is not a file or directory', 'severe')
@@ -957,7 +1058,7 @@ for f in os.listdir(outDir):
 
 logFile = open(outDir+'mertide.log', 'w')
 
-#Get those args!
+# Get those args!
 if __name__ == '__main__':
    inputArgs = main(sys.argv[1:])
 controlDir = inputArgs[0]
@@ -998,7 +1099,6 @@ try:
 	req = requests.Session()
 	req.get(api, auth=credentials)
 	jsessionid = req.cookies.get_dict()
-#	req = requests.get(api + 'resources.json', auth=credentials)
 	req = requests.get(api + 'resources.json', cookies=jsessionid)
 	if req.json()['resources'][0]:
 		log('Connected to DHIS 2 using ' + api)
@@ -1009,12 +1109,12 @@ except:
 	if not(noconnection):
 		sys.exit(2)
 
-#CSS
+# CSS
 cssStart = '<style>'
 css = './css/main.css'
 cssEnd = '</style>'
 
-#Javascript
+# Javascript
 jsStart = '<script>'
 js = []
 jsEnd = '</script>'
@@ -1023,17 +1123,17 @@ for (dirpath, dirnames, filenames) in os.walk(jsDir):
 	js.extend(filenames)
 	break
 
-outDirStandalone = './output/'
 htmlBefore = "<!-- Start Custom DHIS 2 Form -->\n"
 
-#standalone wrappers
+# Standalone wrappers
 standaloneHTMLa = './codechunks/standaloneform_before.html'
 standaloneHTMLb = './codechunks/standaloneform_end.html'
+setuptabsHTML = './codechunks/setuptabs.html'
 
 ulClose = '</ul>\n'
 divClose = '</div>\n'
 
-#Major Navigation List with HTML
+# Major Navigation List with HTML
 majorNavHTML_before = \
 	'<div class="PEPFAR_reporting_legend">\n' + \
 	'\t<i class="fa fa-square PEPFAR_quarterly_square">&nbsp;</i>\n' + \
@@ -1042,25 +1142,25 @@ majorNavHTML_before = \
 	'\t<span>Semiannually Reporting</span>\n' + \
 	'\t<i class="fa fa-square PEPFAR_annually_square">&nbsp;</i>\n' + \
 	'\t<span>Annually Reporting</span>\n</div>\n\n' + \
-	'<div id="PEPFAR_Tabs_vertical">\n' + \
-	'<ul>'
-majorNavHTML_li = '\t<li><a href="#PEPFAR_Tabs_vertical_%s">%s</a></li>'
+	'<div id="PEPFAR_Tabs_vertical" class="ui-tabs-vertical ui-helper-clearfix">\n' + \
+	'<ul class="ui-helper-hidden">'
+majorNavHTML_li = '\t<li class="ui-corner-left"><a href="#PEPFAR_Tabs_vertical_%s">%s</a></li>'
 majorNavHTML_after = ulClose
 majorNavHTML_end = divClose
 
 allHtabs = [{'type': 'DSD', 'label': 'DSD', 'uidsuffix': 'dsd'}, {'type': 'TA', 'label': 'TA-SDI', 'uidsuffix': 'xta'}, {'type': 'NA', 'label': 'Other', 'uidsuffix': 'xna'}]
 
-#Minor Navigation List with HTML
-minorNavHTML_before = '<div id="PEPFAR_Tabs_vertical_%s">\n<div id="PEPFAR_Tabs_h_%s">\n<ul>'
+# Minor Navigation List with HTML
+minorNavHTML_before = '<div id="PEPFAR_Tabs_vertical_%s">\n<div id="PEPFAR_Tabs_h_%s">\n<ul class="ui-helper-hidden">'
 minorNavHTML_li='\t<li><a href="#PEPFAR_Form_%s_%s">%s</a></li>'
 minorNavHTML_after=ulClose
 minorNavHTML_end=divClose+divClose
 
-#Entry Area
+# Entry Area
 entryAreaHTML_start = '<div id="PEPFAR_Form_%s_%s">\n<p class="PEPFAR_Form_ShowHide">&nbsp;</p>\n\n'
 entryAreaHTML_end = divClose
 
-#Indicator
+# Indicator
 indicatorHTML_before = \
 	'<!-- {title} -->\n' + \
 	'<div class="PEPFAR_Form">\n' + \
@@ -1071,15 +1171,15 @@ indicatorHTML_after = \
 	'<!-- END {title} --></div>\n\n' + \
 	'<p>&nbsp;</p>\n\n'
 
-# Builds HTML prefix to use before the form-specific contents
+# Build HTML prefix to use before the form-specific contents
 
-#CSS
+# CSS
 htmlBefore+="\n"+cssStart+"\n"
 with open(css, "r") as readFile:
 	htmlBefore+=readFile.read()
 htmlBefore+="\n"+cssEnd+"\n"
 
-#All JS Files
+# All JS Files
 htmlBefore+="\n"+jsStart+"\n"
 for jsFile in js:
 	with open(jsDir+'/'+jsFile, "r") as readFile:
@@ -1088,7 +1188,7 @@ for jsFile in js:
 			htmlBefore+="\n"
 htmlBefore+="\n"+jsEnd+"\n"
 
-#Major Nav
+# Major Nav
 htmlBefore+=majorNavHTML_before+"\n"
 
 exportDataEntryForms = [] #Array of XML <dataEntryForm> definitions to export (v2.22 and following)
@@ -1113,7 +1213,7 @@ if not(noconnection):
 		dhisRulesCache[hashRule(r)] = r
 
 if controlDir:
-	controlFile = outDirStandalone + 'temp.csv'
+	controlFile = outDir + 'temp.csv'
 	o = open(controlFile, 'w')
 	for i in os.listdir(controlDir):
 		if i.endswith('.csv'):

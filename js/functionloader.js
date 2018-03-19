@@ -1,5 +1,6 @@
 (function() {
     var dataSetToRunFor;
+    var firstRun = true;
 
     dhis2.util.on(dhis2.de.event.dataValuesLoaded, function(event, ds) {
         if (dataSetToRunFor && dataSetToRunFor !== ds) {
@@ -7,25 +8,28 @@
             qbert.reset();
             meany.reset();
         } else {
-            dataSetToRunFor = ds;
-            stella.load();
             qbert.load();
-            meany.load();
+            stella.load();
 
-            console.log('PEPFAR: MER | Custom JS Loaded: v20170717');
+            if (firstRun) {
+                firstRun = false;
+                dataSetToRunFor = ds;
 
-            $(".PEPFAR_Form_EntryField").find(".entryfield").addClass("PEPFAR_Form_EntryField_input");
-            $(".PEPFAR_Form_OptionSet").find(".entryoptionset").addClass("PEPFAR_Form_EntryField_optionset");
-            $(".PEPFAR_Form_Narrative").find(".entryarea").addClass("PEPFAR_Form_EntryField_narrative");
+                console.log('PEPFAR: MER | Custom JS Loaded: v20180312');
 
-            $('.entryfield').each(function(index) {
-                if ($(this).css('background-color') != 'rgb(255, 255, 255)' && !$(this).hasClass("disabled")) {
-                    $(this).css('background-color', 'rgb(255, 255, 255)');
-                }
-            });
+                $('.PEPFAR_Form_EntryField').find('.entryfield').addClass('PEPFAR_Form_EntryField_input');
+                $('.PEPFAR_Form_OptionSet').find('.entryoptionset').addClass('PEPFAR_Form_EntryField_optionset');
+                $('.PEPFAR_Form_Narrative').find('.entryarea').addClass('PEPFAR_Form_EntryField_narrative');
 
-            //Data Values Loaded extra js to run
-            //#dataValuesLoaded#
+                $('.entryfield').each(function(index) {
+                    if ($(this).css('background-color') != 'rgb(255, 255, 255)' && !$(this).hasClass('disabled')) {
+                        $(this).css('background-color', 'rgb(255, 255, 255)');
+                    }
+                });
+
+                //Data Values Loaded extra js to run
+                //#dataValuesLoaded#
+            }
         }
     });
 

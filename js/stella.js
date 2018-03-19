@@ -3,13 +3,14 @@
 /**
  * STELLA: Sub Total ELement Lazy Adderupper
  *  Adds up column, row, and group numeric totals
- * @author: Greg Wilson <gwilson@baosystems.com>
+ * @author: Greg Wilson <gwilson@baosystems.com> and Ben Guaraldi <ben@dhis2.org>
  * @requires: dhis2 utils
  */
 
 /**
  * Assumptions:
- * Subindicators are wrapped in a class prefixed with si_ followed by a unique 8 alnum (eg. si_aaaaaaaa)
+ * Specific subindicator ids (ssid) are wrapped in a class prefixed with 'si_' (for subindicator) 
+ *   followed by a unique 8 alnum (eg. si_aaaaaaaa)
  * Each 'Form_EntryField' that contributed to a row or column count needs to have a
  *   respective "rowX" and "colY" class to indicate which row/column it contributes to.
  * Row total fields are readonly and have the class totrowX_aaaaaaaa where X is
@@ -27,182 +28,201 @@ stella.autocalcrules = [];
 
 /**
  * Load autocalc rules into stella.autocalcrules and stella.autocalcindex.
- * stella.autocalcrules is an array of rules, where each rule has the target as index 0
- * and the array of sources and category option combos as index 1.
- * stella.autocalcindex is a hash, where the SSID is the key and an array of indices of rules 
- * from stella.autocalcrules is the value.
+ *
+ * stella.autocalcrules is an array of rules, where each rule has an array of operands to sum as index 0
+ * and a single target to put that sum as index 1.   Each source could either be one specific subindicator id 
+ * (ssid) or an array with index 0 as an ssid and index 1 with a set of category option combos (coc).
+ *
+ * stella.autocalcindex is a hash, where the ssid is the key and the value is an array of indices
+ * of rules from stella.autocalcrules.
  */
-stella.autocalc = function (target, source) {
-  stella.autocalcrules.push([target, source]);
+stella.autocalc = function (source, target) {
+  // Add the rule to autocalcrules
+  stella.autocalcrules.push([source, target]);
+
+  // Consider each operand of the source
   source.forEach(function(s) {
+    // s[0] is the ssid, which is the key for autocalcindex
+    // (s[1], if it exists, is an array of cocs to consider;
+    // any other cocs are ignored)
+
+    // If we haven't seen this ssid, make an empty array for it
     if (!(s[0] in stella.autocalcindex)) {
       stella.autocalcindex[s[0]] = [];
     }
-    stella.autocalcindex[s[0]].push(stella.autocalcrules.length - 1);
-    stella.updateSubindicatorTotal(source, target);
+
+    // Add this rule to autocalcindex if it's not already there
+    if (stella.autocalcindex[s[0]].indexOf(stella.autocalcrules.length - 1) === -1) {
+      stella.autocalcindex[s[0]].push(stella.autocalcrules.length - 1);
+    }
+
   });
+
+  // Now that we've loaded this rule, run it so that the totals begin with the correct values
+  stella.sumTotal(source, target);
 };
 
 /**
- * Subtotal calculation when a data value changes
- */
-stella.changed = function (dv) {
-  //get the element that was changed
-  var si = "";
-  //find the particular sub indicator group that was modified
-  $('[class*="si_"]').each(function (i, d) {
-    var c = $(this).attr('class');
-    var this_si = c.substr(c.indexOf('si_') + 3, 8);
-    if ($(this).find("[id^=" + dv.de + "]").length > 0) {
-      si = this_si;
-      return;
-    }
-  });
-
-  if (si !== "") {
-    stella.updateSubindicatorTotal([si], si);
-    if (si in stella.autocalcindex) {
-      stella.autocalcindex[si].forEach(function(e) {
-        stella.updateSubindicatorTotal(stella.autocalcrules[e][1], stella.autocalcrules[e][0]);
-      });
-    }
-  }
-};
-
-/**
- * Subtotal calculation for a particular subindicator
- */
-stella.updateSubindicatorTotal = function (source, target) {
-  var rows = []; //assigned to rows
-  var cols = []; //assigned to columns
-  var all = []; //all the non-empty values
-  //regexes for getting which particular row/col we re looking at
-  var re_row = /row([0-9]{1,2})/;
-  var re_col = /col([0-9]{1,2})/;
-
-  //enter these specific subindicators
-  source.forEach(function (s) {
-    var si, cocs;
-    if (Array.isArray(s)) {
-      si = s[0];
-      cocs = s[1];
-    } else {
-      si = s;
-      cocs = false;
-    }
-    $(".si_" + si).each(function (i, d) {
-      //get all the entry divs
-      $(this).find('[class*=Form_EntryField]').each(function (j, m) {
-        var val = 0;
-        var classes = $(this).attr('class');
-        //skip the 'total' fields
-        if (classes.indexOf('tot') >= 0) {
-          return;
-        }
-        //get the input object
-        var input = $(this).find("input");
-
-        //if we're only selecting a specific category option combo, check to see whether this input has an id and
-        //whether that coc is referenced in that id
-        if (cocs) {
-          var ignore = true;
-          if (typeof($(input).attr('id')) === 'undefined') {
-            return;
-          }
-          for (var c = 0; c < cocs.length; c++) {
-            if ($(input).attr('id').indexOf(cocs[c]) !== -1) {
-              ignore = false;
-              continue;
-            }
-          }
-          if (ignore) {
-            return;
-          }
-          val = input.val();
-        } else {
-          val = input.val();
-        }
-
-        //we didn't end up with a value, so check to see if we are in reports instead
-        if (val === undefined) {
-          val = parseInt($(this).find(".val").text());
-        }
-        if (isNaN(val)) {
-          //ignore
-        } else {
-            var v = Number(val);
-            //stick it in the right bucket(s)
-            if (source[0] == target) {
-              var row = re_row.exec(classes);
-              var col = re_col.exec(classes);
-              if (row && row.length === 2) {
-                if (!rows[row[1]]) {
-                  rows[row[1]] = [];
-                }
-                if (val !== '') {
-                  rows[row[1]].push(v);
-                }
-              }
-              if (col && row.length === 2) {
-                if (!cols[col[1]]) {
-                  cols[col[1]] = [];
-                }
-                if (val !== '') {
-                  cols[col[1]].push(v);
-                }
-              }
-            }
-            if (val !== '') {
-              all.push(v);
-            }
-          }
-      });
-    });
-
-    //update the page
-    if (source[0] == target) {
-      rows.forEach(function (d, i) {
-        $('.totrow' + i + '_' + source).each(function () {
-          stella.sum_and_display(this, d);
-        });
-      });
-      cols.forEach(function (d, i) {
-        $('.totcol' + i + '_' + source).each(function () {
-          stella.sum_and_display(this, d);
-        });
-      });
-    }
-    $(".total_" + target).each(function () {
-      stella.sum_and_display(this, all);
-    });
-  });
-};
-
-/**
- * On-load method to update all subindicator totals
+ * Update rows, columns, and non-custom totals when loading the page
  */
 stella.load = function () {
   $('[class*="si_"]').each(function (i, d) {
     var c = $(this).attr('class');
-    var si = c.substr(c.indexOf('si_') + 3, 8);
-    stella.updateSubindicatorTotal([si], si);
+    var ssid = c.substr(c.indexOf('si_') + 3, 8);
+    stella.sumSlice(ssid, 'row');
+    stella.sumSlice(ssid, 'col');
+    stella.sumTotal([[ssid]], ssid);
   });
 };
 
 /**
- * Helper: reduce a data array to its sum and place it into the corresponding child input.
+ * When a form value is changed, consider autocalculation of rows, columns, totals, and custom rules 
+ * to determine whether any form fields need to be changed
  */
-stella.sum_and_display = function (element, data) {
-  if (data.length > 0) {
-    var sum = data.reduce(function (a, b) {
-      return a + b;
-    }, 0);
-    //round to 2 sig figs
-    if (sum.toFixed(2).indexOf(".00") == -1) {
-      sum = sum.toFixed(2);
+stella.changed = function (dv) {
+  // Find the particular sub indicator group that was modified using the de and co properties 
+  // of dv from DHIS 2's dataValueSaved function
+  var ssid = '';
+  $('[class*="si_"]').each(function (i, d) {
+    if ($(this).find('[id^=' + dv.de + '-' + dv.co + ']').length > 0) {
+      var c = $(this).attr('class');
+      ssid = c.substr(c.indexOf('si_') + 3, 8);
+      return;
     }
-    $(element).find('.input_total').text(sum);
-  } else {
-    $(element).find('.input_total').html('<span class="word_subtotal">Subtotal</span>');
+  });
+
+  if (ssid !== '') {                    // If we have an ssid, then look at the related
+    stella.sumSlice(ssid, 'row');       // rows,
+    stella.sumSlice(ssid, 'col');       // columns,
+    stella.sumTotal([[ssid]], ssid);    // totals,
+    if (ssid in stella.autocalcindex) { // and custom rules
+      stella.autocalcindex[ssid].forEach(function(e) {
+        stella.sumTotal(stella.autocalcrules[e][0], stella.autocalcrules[e][1]);
+      });
+    }
   }
+};
+
+/**
+ * Calculate the sums of a certain kind of slice of an ssid, usually either a row or a column
+ */
+stella.sumSlice = function (ssid, slice) {
+  // An array to save the various sums of slices
+  var slices = [];
+
+  // Consider all Document Object Model (DOM) elements that match ssid
+  $('.si_' + ssid).each(function () {
+    // Get all of this DOM element's entry divs
+    $(this).find('[class*=Form_EntryField]').each(function () {
+      // Skip the 'total' fields
+      if ($(this).attr('class').indexOf('tot') >= 0) {
+        return;
+      }
+
+      // Look for divs with 'slice' and then one or two numbers
+      var re = new RegExp(slice + '([0-9]{1,2})');
+      var s = re.exec($(this).attr('class'));
+
+      // If we found a relevant div, add it in
+      if (s && s.length === 2) {
+        var val = stella.getVal(this);
+        if (!isNaN(val)) {
+          if (!slices[s[1]]) {
+            slices[s[1]] = 0;
+          }
+          slices[s[1]] += +val;
+        }
+      }
+    });
+  });
+
+  // Take all slices that we found display the sum we calculated
+  slices.forEach(function (total, i) {
+    stella.display('.tot' + slice + i + '_' + ssid, total);
+  });
+};
+
+/**
+ * Calculate the total sum for source, which is an array of operands, each with either just an ssid or an ssid
+ * and cocs that restrict it.  Then place that total sum in target.  If created in an HTML template file, the
+ * source and target will be the same ssid.  If specified in the CSV control file, they may be the same, but are
+ * more likely to be different.
+ */
+stella.sumTotal = function (source, target) {
+  var total = 0;
+
+  // Consider each operand in source
+  source.forEach(function (s) {
+    var ssid = s[0];
+    var cocs = s[1];
+
+    // Consider all DOM elements that match ssid
+    $('.si_' + ssid).each(function () {
+      // Get all of this DOM element's entry divs
+      $(this).find('[class*=Form_EntryField]').each(function () {
+        var input = $(this).find('input');
+
+        // Skip the total fields.  Also, if we're only selecting a specific category option combo, 
+        // check to see whether this input has an id and whether that coc is referenced in that id
+        if ($(this).attr('class').indexOf('tot') === -1 && (!cocs || stella.idHasCoc($(input).attr('id'), cocs))) {
+          // If we get a value, add it to the total
+          var val = stella.getVal(this);
+          if (!isNaN(val)) {
+            total += +val;
+          }
+        }
+      });
+    });
+
+    // Display the total sum in all DOM elements that match '.total_' + target.  (target is an ssid.)
+    stella.display('.total_' + target, total);
+  });
+};
+
+/**
+ * Format a value and display it in all DOM elements matching selector.
+ * If value is 0, show the text Subtotal in a small font.
+ */
+stella.display = function (selector, value) {
+  $(selector).each(function () {
+    if (value > 0) {
+      // Round to 2 sig figs
+      if (value.toFixed(2).indexOf('.00') == -1) {
+        value = value.toFixed(2);
+      }
+      $(selector).find('.input_total').text(value);
+    } else {
+      $(selector).find('.input_total').html('<span class="word_subtotal">Subtotal</span>');
+    }
+  });
+};
+
+/**
+ * Get the DHIS 2 data value related to a DOM selector
+ */
+stella.getVal = function(selector) {
+  // Try to get the value through the input child of selector
+  var val = $(selector).find('input').val();
+
+  // We didn't end up with a value, so check to see if we are in reports instead
+  if (val === undefined) {
+    val = parseInt($(selector).find('.val').text());
+  }
+
+  return val;
+};
+
+/**
+ * Determine whether a given id references a coc
+ */
+stella.idHasCoc = function (id, cocs) {
+  if (typeof id === 'undefined') {
+    return false;
+  }
+  for (var c = 0; c < cocs.length; c++) {
+    if (id.indexOf(cocs[c]) !== -1) {
+      return true;
+    }
+  }
+  return false;
 };

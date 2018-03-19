@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>MERTIDE: PEPFAR's OFFLINE TESTING ENVIRONMENT</title>
+<title>MERTIDE: PEPFAR OFFLINE TESTING ENVIRONMENT</title>
 <meta content="DHIS 2" name="description">
 <meta content="DHIS 2" name="keywords">
 <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -2716,7 +2716,7 @@ $( document ).ready(function() {
         [ "saveRanDmID", {
                            de: $( this ).attr('id').split("-")[0],
                            value:$( this ).attr("value"),
-                           co: "COCOCO00000",
+                           co: $( this ).attr('id').split("-")[1],
                            ou: dhis2.de.currentOrganisationUnitId ,
                            pe: "YYYYMM"
                        }]
@@ -2822,7 +2822,7 @@ $(document).ready(function(){
 <body class="x-body x-webkit x-chrome x-reset" id="ext-gen1009">
   <div id="header">
 	<img id="headerBanner" style="cursor:pointer" title="View home page" src='data:image/png;base64,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'/>
-    <span id="headerText" onclick="window.location.href='../dhis-web-dashboard-integration/index.action'" style="cursor:pointer" title="View home page">MERTIDE: PEPFAR's OFFLINE TESTING ENVIRONMENT</span>
+    <span id="headerText" onclick="window.location.href='../dhis-web-dashboard-integration/index.action'" style="cursor:pointer" title="View home page">MERTIDE: PEPFAR OFFLINE TESTING ENVIRONMENT</span>
     <div id="dhisDropDownMenu">
       <ul id="menuLinkArea">
         <li id="profileButton">

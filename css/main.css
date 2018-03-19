@@ -297,6 +297,11 @@
 	width: 66px;
 }
 
+.PEPFAR_Form_EntryField_150x_wide {
+	padding: 8px 3px 8px 3px;
+	width: 66px;
+}
+
 .PEPFAR_Form_EntryField_2x_wide {
 	padding: 8px 4px 8px 4px;
 	width: 88px;
@@ -335,164 +340,164 @@
 background-color: #D6E0F5;
 }
 
-		.ui-widget {
-			border: none;
-		}
-		
-		.ui-widget.ui-widget-content {
-		    border: none;
-		}
-		
-		.ui-corner-all, .ui-corner-bottom, .ui-corner-right, .ui-corner-br, .ui-corner-left {
-			border-bottom-right-radius: 0px;
-			border-bottom-left-radius: 0px;
-			border-top-right-radius: 0px;
-			border-top-left-radius: 0px;
-		}
-		
-		.ui-widget-header {
-			border: 1px solid #4297d7;
-			background: #5c9ccc;
-			margin-top: 2px;
-		}
-		
-		.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default {
-			border: 1px solid #c5dbec;
-			background: #ffffff;
-		}
+.ui-widget {
+	border: none;
+}
 
-        .ui-tabs-vertical
-        {
-            position: relative; /* position: relative prevents IE scroll bug (element with position: relative inside container with overflow: auto appear as "fixed") */
-            /*padding: 4px;*/
-        }
+.ui-widget.ui-widget-content {
+    border: none;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav li
-        {
-            list-style: none;
-            float: left;
-            position: relative;
-            top: 0;
-            margin: 0px 4px 0px 0px;
-            border-bottom-width: 0;
-            padding: 0;
-        }
+.ui-corner-all, .ui-corner-bottom, .ui-corner-right, .ui-corner-br, .ui-corner-left {
+	border-bottom-right-radius: 0px;
+	border-bottom-left-radius: 0px;
+	border-top-right-radius: 0px;
+	border-top-left-radius: 0px;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav .ui-tabs-anchor
-        {
-            float: left;
-            padding: 4px 8px 4px 8px;
-            text-decoration: none;
-        }
+.ui-widget-header {
+	border: 1px solid #4297d7;
+	background: #5c9ccc;
+	margin-top: 2px;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active
-        {
-            padding-bottom: 1px;
-        }
+.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default {
+	border: 1px solid #c5dbec;
+	background: #ffffff;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor,
-        .ui-tabs-vertical .ui-tabs-nav li.ui-state-disabled .ui-tabs-anchor,
-        .ui-tabs-vertical .ui-tabs-nav li.ui-tabs-loading .ui-tabs-anchor
-        {
-            cursor: text;
-        }
+.ui-tabs-vertical
+{
+    position: relative; /* position: relative prevents IE scroll bug (element with position: relative inside container with overflow: auto appear as "fixed") */
+    /*padding: 4px;*/
+}
 
-        .ui-tabs-collapsible .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor
-        {
-            cursor: pointer;
-        }
+.ui-tabs-vertical .ui-tabs-nav li
+{
+    list-style: none;
+    float: left;
+    position: relative;
+    top: 0;
+    margin: 0px 4px 0px 0px;
+    border-bottom-width: 0;
+    padding: 0;
+}
 
-        .ui-tabs-vertical .ui-tabs-panel
-        {
-            display: block;
-            border-width: 0;
-            padding: 16px 20px;
-            background: none;
-        }
+.ui-tabs-vertical .ui-tabs-nav .ui-tabs-anchor
+{
+    float: left;
+    padding: 4px 8px 4px 8px;
+    text-decoration: none;
+}
 
-/***Customize********/
-        .ui-tabs-vertical
-        {
-            width: 100%;
-            min-width: 200px;
-        }
+.ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active
+{
+    padding-bottom: 1px;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav
-        {
-            padding: 2px 2px 0px 2px;
-            float: left;
-            width: 20%;
-            min-width: 10em;
-        }
+.ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor,
+.ui-tabs-vertical .ui-tabs-nav li.ui-state-disabled .ui-tabs-anchor,
+.ui-tabs-vertical .ui-tabs-nav li.ui-tabs-loading .ui-tabs-anchor
+{
+    cursor: text;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav li
-        {
-            clear: left;
-            width: 100%;
-            border-bottom-width: 1px !important;
-            border-right-width: 0 !important;
-            margin: 0px -1px .2em 0;
-        }
+.ui-tabs-collapsible .ui-tabs-nav li.ui-tabs-active .ui-tabs-anchor
+{
+    cursor: pointer;
+}
 
-        .ui-tabs-vertical .ui-tabs-nav li a
-        {
-            display: block;
-        }
-
-        .ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active
-        {
-            padding-bottom: 0;
-    		background: #e8f3fc;
-        }
-
-        .ui-tabs-vertical .ui-tabs-panel
-        {
-            padding: 1em !important;
-            float: right;
-        }
+.ui-tabs-vertical .ui-tabs-panel
+{
+    display: block;
+    border-width: 0;
+    padding: 16px 20px;
+    background: none;
+}
 
 /***Customize********/
-        .ui-tabs .ui-tabs-nav
-        {
-            padding: .2em .2em 0;
-            width: 100%;
-            max-width: 120em;
-        }
+.ui-tabs-vertical
+{
+    width: 100%;
+    min-width: 200px;
+}
 
-        .ui-tabs .ui-tabs-nav li
-        {
-            clear: none;
-            width: auto;
-            list-style: none;
-            float: left;
-            position: relative;
-            top: 0;
-            margin: 1px .2em 0 0;
-            border-bottom-width: 0;
-            padding: 0;
-        }
-        .ui-tabs-vertical .ui-tabs-panel
-        {
-            padding: 0em !important;
-            float: left;
-            width: 78%;
-            min-width: 800px;
-        }
-        .ui-tabs .ui-tabs-panel
-        {
-            padding: .2em !important;
-            float: left;
-            width: 98%;
-        }
-        .ui-tabs-anchor
-        {
-            width: 100%;
-        }
-        .ui-tabs-vertical .ui-tabs-nav .ui-tabs-anchor
-        {
-            box-sizing: border-box;
-        }
-        
+.ui-tabs-vertical .ui-tabs-nav
+{
+    padding: 2px 2px 0px 2px;
+    float: left;
+    width: 20%;
+    min-width: 10em;
+}
+
+.ui-tabs-vertical .ui-tabs-nav li
+{
+    clear: left;
+    width: 100%;
+    border-bottom-width: 1px !important;
+    border-right-width: 0 !important;
+    margin: 0px -1px .2em 0;
+}
+
+.ui-tabs-vertical .ui-tabs-nav li a
+{
+    display: block;
+}
+
+.ui-tabs-vertical .ui-tabs-nav li.ui-tabs-active
+{
+    padding-bottom: 0;
+	background: #e8f3fc;
+}
+
+.ui-tabs-vertical .ui-tabs-panel
+{
+    padding: 1em !important;
+    float: right;
+}
+
+/***Customize********/
+.ui-tabs .ui-tabs-nav
+{
+    padding: .2em .2em 0;
+    width: 100%;
+    max-width: 120em;
+}
+
+.ui-tabs .ui-tabs-nav li
+{
+    clear: none;
+    width: auto;
+    list-style: none;
+    float: left;
+    position: relative;
+    top: 0;
+    margin: 1px .2em 0 0;
+    border-bottom-width: 0;
+    padding: 0;
+}
+.ui-tabs-vertical .ui-tabs-panel
+{
+    padding: 0em !important;
+    float: left;
+    width: 78%;
+    min-width: 800px;
+}
+.ui-tabs .ui-tabs-panel
+{
+    padding: .2em !important;
+    float: left;
+    width: 98%;
+}
+.ui-tabs-anchor
+{
+    width: 100%;
+}
+.ui-tabs-vertical .ui-tabs-nav .ui-tabs-anchor
+{
+    box-sizing: border-box;
+}
+
 .ui-state-active a, .ui-state-active a:link, .ui-state-active a:visited {
 	color:#900;
 }
@@ -537,4 +542,9 @@ background-color: #D6E0F5;
 		#FF3333 8px
 	);
   border:1px solid #f66 !important;
+}
+
+.cerulean{
+	float:right;
+	color:red
 }
