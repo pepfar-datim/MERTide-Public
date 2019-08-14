@@ -1,4 +1,5 @@
 # MERtide
+**Repo Owner:** Ben Guaraldi [@benguaraldi](https://github.com/benguaraldi)
 
 A tool for creation of PEPFAR Monitoring, Evaluation, and Reporting (MER) forms in DHIS 2.
 
