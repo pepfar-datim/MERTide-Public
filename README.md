@@ -45,14 +45,18 @@ This project is licensed under the new BSD License. See the [LICENSE.md](LICENSE
 
 `-h`, `--help`: Prints this message
 
-**Sample Control Files**
+**Sample Files**
 
-Located in `samples/control_files`
+`samples/control_files`: Contains the .csv form file
 
-`equals.csv`: R = indicator ctl_rules
+- `equals.csv`: R = indicator ctl_rules
 
-`greaterthan.csv`: R > indicator ctl_rules
+- `greaterthan.csv`: R > indicator ctl_rules
 
-`lessthan.csv`: R < indicator ctl_rules
+- `lessthan.csv`: R < indicator ctl_rules
 
-`muex.csv`, `muex2.csv` - Mutually exclusive ctl_rules
+- `muex.csv`, `muex2.csv`: Mutually exclusive ctl_rules
+
+`samples/disagg_files`: Contains the .html files for each indicator in the control file.
+
+`mertidecommand.sh`: Command line templates to run mertide
