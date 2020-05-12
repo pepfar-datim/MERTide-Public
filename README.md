@@ -44,3 +44,15 @@ This project is licensed under the new BSD License. See the [LICENSE.md](LICENSE
 `--favoriteisoquarter=2019Q1`: Year and Quarter in which to create favorites override (Defaults to current quarter)
 
 `-h`, `--help`: Prints this message
+
+**Sample Control Files**
+
+Located in `samples/control_files`
+
+`equals.csv`: R = indicator ctl_rules
+
+`greaterthan.csv`: R > indicator ctl_rules
+
+`lessthan.csv`: R < indicator ctl_rules
+
+`muex.csv`, `muex2.csv` - Mutually exclusive ctl_rules
