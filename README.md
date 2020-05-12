@@ -33,14 +33,14 @@ This project is licensed under the new BSD License. See the [LICENSE.md](LICENSE
 
 **Options:**
 	 
--n, --noconnection: Parse CSV even if there is no connection to DHIS2
+`-n`, `--noconnection`: Parse CSV even if there is no connection to DHIS2
     
--f formuid1234,formid2468, --forms=formuid1234,formid2468: Only include forms with uid formuid1234 and formuid2468
+`-f formuid1234,formid2468`, `--forms=formuid1234,formid2468`: Only include forms with uid formuid1234 and formuid2468
 
---nofavorites: Do not output favorites
+`--nofavorites`: Do not output favorites
 
---html: Outputs static HTML versions of the forms for uploading directly to DHIS2
+`--html`: Outputs static HTML versions of the forms for uploading directly to DHIS2
 
---favoriteisoquarter=2019Q1: Year and Quarter in which to create favorites override (Defaults to current quarter)
+`--favoriteisoquarter=2019Q1`: Year and Quarter in which to create favorites override (Defaults to current quarter)
 
--h, --help: Prints this message
+`-h`, `--help`: Prints this message
