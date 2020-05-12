@@ -47,7 +47,7 @@ This project is licensed under the new BSD License. See the [LICENSE.md](LICENSE
 
 **Sample Files**
 
-`samples/control_files`: Contains the .csv form file
+`samples/control_files`: Contains the .csv form files
 
 - `equals.csv`: R = indicator ctl_rules
 
