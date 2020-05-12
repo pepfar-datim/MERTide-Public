@@ -57,6 +57,6 @@ This project is licensed under the new BSD License. See the [LICENSE.md](LICENSE
 
 - `muex.csv`, `muex2.csv`: Mutually exclusive ctl_rules
 
-`samples/disagg_files`: Contains the .html files for each indicator in the control file.
+`samples/disagg_files`: Contains the .html files for each indicator in the control file
 
 `mertidecommand.sh`: Command line templates to run mertide
