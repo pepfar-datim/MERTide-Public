@@ -1662,16 +1662,15 @@ else:
 	z.close()
 
 if not(nofavorites):
-	#pprint.pprint(favoriteJSON)
-	export = open(outDir + 'precursorfavoritesannually.json', 'w')
+	export = open(outDir + 'precursorFavoritesAnnually.json', 'w')
 	export.write(json.dumps(favoriteAnnuallyJSON, sort_keys=True, indent=2, separators=(',', ': ')))
 	export.close()
 
-	export = open(outDir + 'precursorfavoritessemiannualyl.json', 'w')
+	export = open(outDir + 'precursorFavoritesSemiannually.json', 'w')
 	export.write(json.dumps(favoriteSemiannuallyJSON, sort_keys=True, indent=2, separators=(',', ': ')))
 	export.close()
 
-	export = open(outDir + 'precursorfavoritesquarterly.json', 'w')
+	export = open(outDir + 'precursorFavoritesQuarterly.json', 'w')
 	export.write(json.dumps(favoriteQuarterlyJSON, sort_keys=True, indent=2, separators=(',', ': ')))
 	export.close()
 
