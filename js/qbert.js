@@ -18,7 +18,17 @@ qbert.getPeriod = function () {
   return $('#selectedPeriodId').val();
 };
 
-qbert.reset = function (form) {
+qbert.erase = function () {
+  $('.expanded').parent().find('input').each(function () {
+    qbert._enable(this);
+  });
+  $('.expanded').parent().find('textarea').each(function () {
+    qbert._enable(this);
+  });
+  $('.expanded').removeClass('expanded').removeClass('ic_title_disabled').next('.PEPFAR_Form_Collapse').slideDown();
+};
+
+qbert.eraseForm = function (form) {
   //Expand
   $(form).removeClass('expanded').next(".PEPFAR_Form_Collapse").slideDown();
   //reset the Title
@@ -88,7 +98,7 @@ qbert.load = function () {
     //Reset the indicators
     var noentry = $(".ic_title_disabled");
     $(noentry).each(function () {
-      qbert.reset(this);
+      qbert.eraseForm(this);
     });
 
     //only show annual in Q4 of FYOCT

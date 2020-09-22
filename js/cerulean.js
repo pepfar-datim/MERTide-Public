@@ -9,16 +9,25 @@
 var cerulean = {};
 
 /**
+ * Delete all of cerulean
+ */
+cerulean.erase = function () {
+  $('.cerulean').remove();
+}
+
+/**
  * On load of form, add expand/collapse buttons and hide sections that do not have values
  */
 cerulean.load = function () {
-  // Remove old buttons
-  $('.cerulean').remove();
+  // Start with a clean slate
+  cerulean.erase();
+
   // Add new buttons
   var buttonDiv = '<div class="cerulean"><span><i class="fa fa-minus-square-o" aria-hidden="true"></i> Collapse</span><span><i class="fa fa-plus-square-o" aria-hidden="true"></i> Expand</span></div>';
   var buttons = $(buttonDiv).appendTo('.PEPFAR_Form_Priority_conditional > .PEPFAR_Form_Description').click(function () {
     cerulean.toggle(this);
   });
+
   // Set up initial state for each section, by considering each of the sets of buttons that was just created
   buttons.each(function () {
     // If there are no values, hide the conditional form section; otherwise, show it

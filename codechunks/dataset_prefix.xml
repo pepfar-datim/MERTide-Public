@@ -18,10 +18,5 @@
 			<renderAsTabs>false</renderAsTabs>
 			<renderHorizontally>false</renderHorizontally>
 			<userGroupAccesses>
-				<userGroupAccess>
-					<id>c6hGi8GEZot</id>
-					<access>r-------</access>
-					<displayName>Data SI access</displayName>
-					<userGroupUid>c6hGi8GEZot</userGroupUid>
-				</userGroupAccess>
+				{userGroupAccesses}
 			</userGroupAccesses>
