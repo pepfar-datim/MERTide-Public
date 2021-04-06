@@ -13,6 +13,7 @@ import json
 import zlib
 import base64
 import getopt
+import pprint
 import random
 import string
 import urllib
@@ -20,7 +21,7 @@ import hashlib
 import zipfile
 import operator
 import requests
-from pprint import pprint
+import datetime
 from collections import defaultdict
 from xml.sax.saxutils import escape
 
@@ -28,9 +29,9 @@ from xml.sax.saxutils import escape
 # logFile is updated as the script runs, instead of only being complete at the end
 def log(line, level = False):
 	if level == 'warn':
-		prefix = 'Warning: '
+		prefix = '*Warning: '
 	elif level == 'severe':
-		prefix = 'SEVERE: '
+		prefix = '**SEVERE: '
 		global severe
 		severe = True
 	else:
@@ -40,6 +41,23 @@ def log(line, level = False):
 	logFile.flush()
 	os.fsync(logFile.fileno())
 
+def getNumeratorDenominator(shortName):
+	numeratorDenominator=re.sub('^.* \((.*)\).*', r'\1', shortName)
+	numeratorDenominator=re.sub('([^,]*),.*', r'\1', numeratorDenominator)
+
+	if numeratorDenominator != 'D' and numeratorDenominator != 'N':
+		return 'Other'
+
+	return numeratorDenominator
+
+def getDisagg(shortName):
+	if shortName.count(',') < 2:
+		return 'No Disagg'
+	else:
+		disagg=re.sub('^.* \((.*)\).*', r'\1', shortName)
+		disagg=re.sub('.*, (.*)', r'\1', disagg)
+	return disagg
+
 # Remove files with funny names
 def filenameChecker(filename):
 	bumFiles=['.DS_Store']
@@ -47,7 +65,103 @@ def filenameChecker(filename):
 		return False
 	return True
 
-# Check to see if a string is a properly formatted DHIS 2 uid
+# current fiscal year for fyoct
+def curFyOct():
+	curQ=(int(datetime.datetime.now().strftime("%m"))+2)//3
+	curY=int(datetime.datetime.now().strftime("%Y"))
+	if curQ == 4:
+		curY = curY + 1
+	return str(curY)
+
+# current year
+def curYear():
+	return str(int(datetime.datetime.now().strftime("%Y")))
+
+def curQuarter():
+	curQ = (int(datetime.datetime.now().strftime("%m"))+2) // 3
+	return str(curQ)
+
+def curISOQuarter():
+	return "FY"+curYear()+"Q"+curQuarter()
+
+# FIXME
+def ISOQuarterToISOSAApr(ISOQuarter):
+	#2018Q4 -> 2018AprilS2
+	#2019Q1 -> 2018AprilS2
+	#2019Q2 -> 2019AprilS1
+	#2019Q3 -> 2019AprilS1
+
+	year = int(ISOQuarter[:4])
+	quarter = int(ISOQuarter[-1])
+	fyaprYear=0
+	fyaprSA=0
+
+	if quarter == 1:
+		fyoctYear = year-1
+		fyaprSA = 2
+	elif quarter == 2:
+		fyoctYear = year
+		fyaprSA = 1
+	elif quarter == 3:
+		fyoctYear = year
+		fyaprSA = 1
+	elif quarter == 4:
+		fyoctYear = year
+		fyaprSA = 2
+
+	return str(fyoctYear)+"AprilS"+str(fyaprSA)
+
+def ISOQuarterToISOFYOctTARGET(ISOQuarter):
+	year = int(ISOQuarter[:4])
+	fyoctYear = year
+	return str(fyoctYear)+"Oct"
+
+def ISOQuarterToISOFYOct(ISOQuarter):
+	year = int(ISOQuarter[:4])
+	quarter = int(ISOQuarter[-1])
+	fyoctYear = 0
+
+	if quarter < 4:
+		fyoctYear = year - 1
+	else:
+		fyoctYear = year
+
+	return str(fyoctYear)+"Oct"
+
+def pepfarReportingQuarter(ISOQuarter,frequency):
+	quarter = int(ISOQuarter[-1])
+
+	if frequency == 'Quarterly':
+		return True
+	elif frequency == 'Semiannually' and (quarter == 1 or quarter == 3):
+		return True
+	elif frequency == 'Annually' and quarter == 3:
+		return True
+
+	return False
+
+def ISOQuarterToFYOctQuarter(ISOQuarter):
+	year = int(ISOQuarter[:4])
+	quarter = int(ISOQuarter[-1])
+	fyoctYear=0
+	fyoctQuarter=0
+
+	if quarter == 1:
+		fyoctQuarter = 2
+		fyoctYear = year
+	elif quarter == 2:
+		fyoctQuarter = 3
+		fyoctYear = year
+	elif quarter == 3:
+		fyoctQuarter = 4
+		fyoctYear = year
+	elif quarter == 4:
+		fyoctQuarter = 1
+		fyoctYear = year+1
+
+	return str(fyoctYear)+"Q"+str(fyoctQuarter)
+
+# Check to see if a string is a properly formatted DHIS2 uid
 def isDhisUid(string):
 	if (len(string) != 11):
 		return False
@@ -57,11 +171,11 @@ def isDhisUid(string):
 		return False
 	return True
 
-# Find a data element, either using the dataElementCache or DHIS 2
+# Find a data element, either using the dataElementCache or DHIS2
 def getDataElement(uid, optionCombo=False):
 	if uid not in dataElementCache:
 		d = requests.get(api + 'dataElements.json', cookies=jsessionid,
-				params = {'paging': False, 'fields': 'name,shortName', 'filter': 'id:eq:' + uid})
+						 params = {'paging': False, 'fields': 'name,shortName', 'filter': 'id:eq:' + uid})
 		try:
 			dataElementCache[uid] = d.json()['dataElements'][0]
 		except:
@@ -83,7 +197,7 @@ def makeUid():
 		uid += random.choice(string.ascii_letters+'0123456789')
 	return uid
 
-# Return 5+input char ssid
+# Return 5+input char ssid. This should be max 8 total, #TODO, limit returned result to 8 chars.
 def makeSsid(htabType):
 	ssid = random.choice(string.ascii_letters)
 	for i in range(0, 4):
@@ -103,7 +217,7 @@ def makeSsidHash(uniqueName, htabType):
 	return uid
 
 # Generate a UID deterministcally from a unique string, using sha
-def makeUidHash(s): 
+def makeUidHash(s):
 	if s=='':
 		return 'NotAUID'
 	hashBytes = bytearray(hashlib.sha256((s).encode()).digest())
@@ -121,7 +235,7 @@ def safeName(s):
 	s = re.sub('_+', '_', s)
 	s = re.sub('_$', '', s)
 	return s.lower()
-	
+
 # Same as safeName, but make it all uppercase as well
 def codeName(s):
 	return safeName(s).upper()
@@ -133,12 +247,20 @@ def findHtabs(vtab):
 		for row in indicator['rows']:
 			if (row['de_dsd1']): htabsPresent.add("DSD")
 			if (row['de_ta1']): htabsPresent.add("TA")
+			if (row['de_cs1']): htabsPresent.add("CS")
 			if (row['de_na1']): htabsPresent.add("NA")
 	htabs = []
 	for htab in allHtabs:
 		if (htab['type'] in htabsPresent):
 			htabs.append(htab)
 	return htabs
+
+# Within a row, find all data elements.
+def findDataElementsFromRow(row):
+	dataElementsPresent = set([]) # Set of dataelements in the row
+	for de in ['de_dsd1', 'de_dsd2', 'de_dsd3', 'de_ta1', 'de_ta2', 'de_ta3', 'de_cs1', 'de_cs2', 'de_cs3', 'de_na1', 'de_na2', 'de_na3']:
+		if row[de]: dataElementsPresent.add(row[de])
+	return dataElementsPresent
 
 # Find out if an indicator should be displayed in a given HTAB.
 def htabInIndicator(htab, indicator):
@@ -149,15 +271,58 @@ def htabInIndicator(htab, indicator):
 
 # Add a dataElement to the data element list for this form
 # and to all the dataElementGroups belonging to this form
-def addDataElement(form, uid, groups, categoryCombo = False):
+def addDataElement(form, uid, groups, frequency, categoryCombo = False):
 	form['formDataElements'].add(uid)
 	for group in groups:
 		dataElementGroups[group].add(uid)
 	if categoryCombo:
 		catComboCache[uid] = categoryCombo
+	# Adds DEs used in forms to directory and label target/result.
+	if uid in masterDataElementList:
+		if form['name'].count('Targets') > 0:
+			formDataElementList[uid] = {'type': 'Target', 'name': masterDataElementList[uid]['name'], 'form': form['name'], 'categoryCombo': categoryCombo, 'frequency': frequency}
+		else:
+			formDataElementList[uid] = {'type': 'Result', 'name': masterDataElementList[uid]['name'], 'form': form['name'], 'categoryCombo': categoryCombo, 'frequency': frequency}
+	else:
+		log('Cannot find data element ' + uid + ' in DHIS2')
 
-# Determine whether any of a category option combo's category options are found
-# within a category
+# Query the api to get all DE and put them in a master directory.
+def getAllDataElements():
+	d = requests.get(api + 'dataElements.json', cookies=jsessionid,
+			params = {'paging': False, 'fields': 'name,shortName,id,categoryCombo[id]'})
+
+	for i in d.json()['dataElements']:
+		id = i['id']
+		masterDataElementList[id] = {'name' : i['name'], 'shortName': i['shortName'], 'id': i['id'], 'categoryComboID' : i['categoryCombo']['id']}
+
+# Query the api to get all Category Option Combos and put them in a master directory
+def getAllCategoryOptionCombos():
+	d = requests.get(api + 'categoryOptionCombos.json', cookies=jsessionid,
+			params = {'paging': False, 'fields': 'name,id,categoryCombo[name,id]'})
+	for i in d.json()['categoryOptionCombos']:
+		id = i['id']
+		masterCategoryOptionComboList[id] = {'name' : i['name'], 'id': i['id'], 'categoryComboName': i['categoryCombo']['name'], 'categoryComboID' : i['categoryCombo']['id']}
+
+# Puts DE from forms into a list to be put in the data store.
+def getDataElementCadence():
+	for key, value in formDataElementList.items():
+		if masterDataElementList[key]['shortName'].count('TARGET') == 0 and checkDataElementQuarter(formDataElementList[key]['frequency']):
+			a = {}
+			a['uid'] = masterDataElementList[key]['id']
+			a['shortName'] = masterDataElementList[key]['shortName']
+			dataElementCadence.append(a)
+
+def checkDataElementQuarter(frequency):
+	quarter = int(favoritesISOQuarter[-1])
+	if frequency == 'Annually' and quarter == 3:
+		return True
+	elif frequency == 'Semiannually' and (quarter == 1 or quarter == 3):
+		return True
+	elif frequency == 'Quarterly' and (quarter >= 1 and quarter <= 4):
+		return True
+	else:
+		return False
+
 def findCo(category, coc):
 	for option in category:
 		for co in coc['categoryOptions']:
@@ -169,7 +334,7 @@ def getCocsFromOptions(options, uid):
 	optionCacheId = str(options) + '_' + uid
 	try:
 		if optionCacheId not in optionCache:
-			req = requests.get(api + 'dataElements/' + uid + '.json', cookies=jsessionid, 
+			req = requests.get(api + 'dataElements/' + uid + '.json', cookies=jsessionid,
 				params = {'paging': False, 'fields': 'name,id,categoryCombo[name,id,categories[name,id,categoryOptions[name,id]],categoryOptionCombos[name,id,categoryOptions[name,id]]]'})
 			categoryCache = []
 			found = []
@@ -212,8 +377,8 @@ def getCocsFromOptions(options, uid):
 def getCoc(name, element):
 	try:
 		if (name + '_' + element) not in cocCache and name not in cocCache:
-			req = requests.get(api + 'dataElements/' + element + '.json', cookies=jsessionid, 
-				params = {'paging': False, 'fields': 'id,name,categoryCombo[id,name,categoryOptionCombos[id,name]]', 
+			req = requests.get(api + 'dataElements/' + element + '.json', cookies=jsessionid,
+				params = {'paging': False, 'fields': 'id,name,categoryCombo[id,name,categoryOptionCombos[id,name]]',
 							'filter': 'categoryCombo.categoryOptionCombos.name:eq:' + name})
 			for coc in req.json()['categoryCombo']['categoryOptionCombos']:
 				cocCache2[coc['id']] = coc['name']
@@ -262,11 +427,11 @@ def splitMertideExpression(expression):
 	else:
 		return([expression])
 
-# Given a MERtide expression, returns an array of parsed expression, data element, 
-# category option, category options list, and category option combo
+# Given a MERtide expression, returns an array of parsed expression, data element, category option,
+# category options list, category option combo, and missing value strategy override
 def parseMertideExpression(expression):
 	# a is the variable to be returned, the array mentioned above
-	a = [urllib.parse.unquote(expression).strip(' '), False, [], [], []]
+	a = [urllib.parse.unquote(expression).strip(' '), False, [], [], [], []]
 	while '.optionCombo:' in a[0]:
 		try:
 			r = re.compile(r'(.+)\.optionCombo\:\s*\"(.*)\"')
@@ -297,6 +462,15 @@ def parseMertideExpression(expression):
 			log('Syntax error: ' + a[0] + ' has an option that cannot be parsed', 'warn')
 			break
 
+	if '.missingValue:' in a[0]:
+		try:
+			r = re.compile(r'(.+)\.missingValue\:\s*\"([^:]*)\"(.*)')
+			s = r.search(a[0])
+			a[5] = s.group(2) # missing value strategy
+			a[0] = s.group(1) + s.group(3)
+		except:
+			log('Syntax error: ' + a[0] + ' has a missing value strategy that cannot be parsed', 'warn')
+
 	if '.de' in a[0]:
 		try:
 			r = re.compile(r'(.+)\.de(.*)')
@@ -308,8 +482,8 @@ def parseMertideExpression(expression):
 
 	return a
 
-# Given a MERtide expression, returns an array of [vr, js, missingValue] where 
-# vr is an array of operands for validation rules, js is an array of operands for javascript, 
+# Given a MERtide expression, returns an array of [vr, js, missingValue] where
+# vr is an array of operands for validation rules, js is an array of operands for javascript,
 # and missingValue is our sense of what to give DHIS2 for the missing value rule
 def processMertideExpression(expression, rule, missingValue, which, uidCache, skipCache, dataElementCache):
 	vr = []
@@ -318,19 +492,15 @@ def processMertideExpression(expression, rule, missingValue, which, uidCache, sk
 	[ignore, operator, ignore2, suffix, alluids, allssids, priority, ruleText, ignore3] = rule
 	if '+' in expression:
 		termsNotSplit = expression.split('+')
-	else: 
+	else:
 		termsNotSplit = [expression]
 
 	for terms in termsNotSplit:
 		for term in splitMertideExpression(terms):
 			termnames = []
-			[term, element, options, ignore, optionCombos] = parseMertideExpression(term)
-
+			[term, element, options, ignore, optionCombos, missingValueOverride] = parseMertideExpression(term)
 			try:
 				if operator == 'autocalculate' or operator == 'exclusive_pair':
-					if element:
-						log('Syntax error: de' + str(element) + ' appears in ' + which + ' expression, but not supported for ' + operator + ' in ' + ruleText, 'warn')
-
 					if term == 'R':
 						ssids = allssids
 						uids = alluids
@@ -339,7 +509,9 @@ def processMertideExpression(expression, rule, missingValue, which, uidCache, sk
 						uids = uidCache[term + '_' + suffix]
 
 					for i in range(len(ssids)):
-						if options:
+						if element:
+							js.append([ssids[i], [uids[element-1]]])
+						elif options:
 							cocs = getCocsFromOptions(options, uids[i])
 							js.append([ssids[i], cocs])
 						elif optionCombos:
@@ -388,22 +560,29 @@ def processMertideExpression(expression, rule, missingValue, which, uidCache, sk
 						else:
 							log('Syntax error: ' + q + ' not associated with missing value strategy for rule ' + ruleText, 'warn')
 
+				if missingValueOverride:
+					if missingValueOverride in ['NEVER_SKIP', 'SKIP_IF_ALL_VALUES_MISSING', 'SKIP_IF_ANY_VALUES_MISSING']:
+						missingValue = missingValueOverride
+					else:
+						log('Warning: ' + missingValueOverride + ' is not a valid missing value override', 'warn')
+
 			except Exception as e:
 				log('Syntax error: Problem compiling ' + which + ' expression in ' + ruleText, 'warn')
 
 		if operator != 'autocalculate':
 			if '.options:' in terms:
-				[term, element, options, optionses, optionCombos] = parseMertideExpression(terms)
+				[term, element, options, optionses, optionCombos, missingValueOverride] = parseMertideExpression(terms)
 
 				uids = getUids(term, suffix, alluids, uidCache)
+				namesuffix = suffix
 
 				if element:
 					uids = [uids[element-1]]
 				for u in uids:
-					suffix = ' options ' + ' and options '.join(optionses).replace('","', ', ').replace('"', '')
+					namesuffix = ' options ' + ' and options '.join(optionses).replace('","', ', ').replace('"', '')
 					if options:
-						suffix = suffix + ' and option ' + ' and option '.join(options)
-					names.append(getDataElement(u, False)['shortName'] + suffix)
+						namesuffix = namesuffix + ' and option ' + ' and option '.join(options)
+					names.append(getDataElement(u, False)['shortName'] + namesuffix)
 			else:
 				names.extend(termnames)
 
@@ -449,18 +628,18 @@ def hashExpression(expression):
 # as well as a + b <= c + d being the same as c + d >= a + b
 def hashRule(rule):
 	try:
-		# Sort both left and right expressions by character, 
+		# Sort both left and right expressions by character,
 		# so if two expressions add terms in different orders,
 		# they will still match
 		l = hashExpression(rule['leftSide']['expression'])
 		r = hashExpression(rule['rightSide']['expression'])
-		
+
 		# Change greater_thans to less_thans
 		o = rule['operator']
 		if o.startswith('greater'):
 			l,r = r,l # swap left and right
 			o = o.replace('greater', 'less')
-		
+
 		# Look up the operator in our operators hash
 		o = operators[o]
 
@@ -487,10 +666,14 @@ def hashRule(rule):
 		return False
 
 def encodeQuote(quote):
-	return '"' + urllib.parse.quote(quote[0][1:-1]) + '"'
+	# The replace '%25' with '%' stops encoding from being effective with percentages
+	# but it does stop the double encoding that was stopping some rules from working
+	return '"' + urllib.parse.quote(quote[0][1:-1]).replace('%25', '%') + '"'
 
 # Make and output a form. This is the core work.
 def makeForm(form):
+	global exportIndicators
+	#pprint.pprint(form)
 	formFileName = safeName(form['name'])
 	form['formDataElements'] = set([])
 	outputHTML = htmlBefore
@@ -524,7 +707,6 @@ def makeForm(form):
 		for j in range(len(htabs)):
 			htab = htabs[j]
 			outputHTML += entryAreaHTML_start % (str(i+1), htab['type'])
-
 			# Loop through the Indicators in a VTAB (combined with HTAB):
 			for k in range(len(vtab['indicators'])):
 				indicator = vtab['indicators'][k]
@@ -534,31 +716,48 @@ def makeForm(form):
 
 				if htabInIndicator(htab, indicator):
 					for row in indicator['rows']:
-						# Some edge cases will mix DSD/TA/Other _exclusives_ inside the same indicator, 
+						# Some edge cases will mix DSD/TA/Other _exclusives_ inside the same indicator,
 						# make sure that we only echo out if it has a UID 1
 						if row['de_' + htab['type'].lower() + '1'] :
 							mutuallyExclusive = row['ctl_exclusive']
 
 							prefix = 'de_' + htab['type'].lower()
-							uid1 = row[prefix + '1']
-							uid2 = row[prefix + '2']
-							uid3 = row[prefix + '3']
 							uids = []
-
-							prefix = 'de_cc_' + htab['type'].lower()
 							ccs = {}
-							ccs[uid1] = row[prefix + '1']
-							ccs[uid2] = row[prefix + '2']
-							ccs[uid3] = row[prefix + '3']
 
-							for u in [uid1, uid2, uid3]:
-								if u and u != 'null':
-									if u in uidCache2 and u not in warnUidCache:
-										log('The uid ' + u + ' appears multiple times', 'warn')
-										warnUidCache.append(u)
-									addDataElement(form, u, form['dataElementGroups'], ccs[u])
-									uids.append(u)
-									uidCache2.append(u)
+							for k in ['1', '2', '3']:
+								uid = row[prefix + k]
+								val = open(comboDir + row['sub_disagg'] + '.html').read().find('{deuid' + k + '}')
+								coc = open(comboDir + row['sub_disagg'] + '.html').read()[val+9:val+20]
+								if val > 0:
+									ccs[uid] = masterCategoryOptionComboList[coc]['categoryComboID']
+
+								if uid and uid != 'null':
+									if uid in uidCache2 and uid not in warnUidCache:
+										log(form['name'] + ': The uid ' + uid + ' appears multiple times', 'warn')
+										warnUidCache.append(uid)
+									if masterDataElementList[uid]['categoryComboID'] not in ccs[uid]:
+										log ("The data element " + masterDataElementList[uid]['name'] +
+											 " - " + uid + " DATIM cat combo " + masterDataElementList[uid]['categoryComboID'] +
+											 " does not match the " + row['sub_disagg'] + ".html catcombo(s) " + ccs[uid], 'warn')
+
+									addDataElement(form, uid, form['dataElementGroups'], indicator['frequency'], ccs[uid])
+									uids.append(uid)
+									uidCache2.append(uid)
+
+								if not('autocalc' in row['sub_disagg'] and 'wide' in row['sub_disagg']):
+									# Will need to phase out when CC is removed from .csv
+									if val > 0:
+										if coc in masterCategoryOptionComboList:
+											if masterCategoryOptionComboList[coc]['categoryComboID'] != ccs[uid]:
+												log("Cat Combo: " + masterCategoryOptionComboList[coc]['categoryComboName'] +
+													" - " + masterCategoryOptionComboList[coc]['categoryComboID'] +
+													" found in " + row['sub_disagg'] + ".html does not match the form of cat combo " +
+													k + " " + ccs[uid] + " at " + indicator['name'], 'warn')
+										else:
+											log("Could not find coc in master list: " + row['sub_disagg'] + ". Val is " + str(val),'warn')
+
+								globals()['uid' + k] = uid
 
 							if row['ctl_uniqueid']:
 								if (row['ctl_uniqueid'] + '_' + htab['uidsuffix']) in uidCache:
@@ -570,20 +769,9 @@ def makeForm(form):
 								ssid = makeSsid(htab['uidsuffix'])
 								uidCache[ssid] = uids
 
-							if row['ind_top_level']:
-								if row['ind_top_level'] not in topLevelIndicators:
-									topLevelIndicators[row['ind_top_level']] = {}
-								for u in uids:
-									topLevelIndicators[row['ind_top_level']][u] = True
-								
 							subIndicatorsHTML += '<div class="si_' + ssid + '">\n'
-							if not('autocalc' in row['sub_disagg'] and 'wide' in row['sub_disagg']):
-								ssids = [ssid]
-								subIndicatorsHTML += open(comboDir + row['sub_disagg'] + '.html').read().format(
-									priority=row['sub_priority'], priority_css='PEPFAR_Form_Priority_'+safeName(row['sub_priority']), 
-									description=row['sub_heading'], description2=row['sub_text'], 
-									ssid=ssid, deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
-							else:
+
+							if 'autocalc' in row['sub_disagg'] and 'wide' in row['sub_disagg']:
 								ssids = [ssid, makeSsid(htab['uidsuffix']), makeSsid(htab['uidsuffix']), makeSsid(htab['uidsuffix'])]
 								if (';' in row['sub_text']):
 									sub_text_1, sub_text_2, sub_text_3 = row['sub_text'].split(';')
@@ -591,9 +779,15 @@ def makeForm(form):
 									sub_text_1, sub_text_2, sub_text_3 = ['', '', '']
 
 								subIndicatorsHTML += open(comboDir + row['sub_disagg'] + '.html').read().format(
-									priority=row['sub_priority'], priority_css='PEPFAR_Form_Priority_'+safeName(row['sub_priority']), 
+									priority=row['sub_priority'], priority_css='PEPFAR_Form_Priority_'+safeName(row['sub_priority']),
 									description=row['sub_heading'], sub_text_1=sub_text_1, sub_text_2=sub_text_2, sub_text_3=sub_text_3,
 									ssid1=ssids[1], ssid2=ssids[2], ssid3=ssids[3], deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
+							else:
+								ssids = [ssid]
+								subIndicatorsHTML += open(comboDir + row['sub_disagg'] + '.html').read().format(
+									priority=row['sub_priority'], priority_css='PEPFAR_Form_Priority_'+safeName(row['sub_priority']),
+									description=row['sub_heading'], description2=row['sub_text'],
+									ssid=ssid, deuid1=uid1, deuid2=uid2, deuid3=uid3) + '\n</div>\n\n\n'
 
 							if row['ctl_exclusive']:
 								left = 'R'
@@ -608,7 +802,7 @@ def makeForm(form):
 
 								if ';' in row['ctl_rules']:
 									rs = row['ctl_rules'].split(';')
-								else: 
+								else:
 									rs = [row['ctl_rules']]
 
 								for r in rs:
@@ -619,6 +813,9 @@ def makeForm(form):
 									elif ('<=' in r):
 										operator = '<='
 										action = 'less_than_or_equal_to'
+									elif ('==' in r):
+										operator = '=='
+										action = 'equal_to'
 									elif ('=' in r):
 										operator = '='
 										action = 'autocalculate'
@@ -639,6 +836,8 @@ def makeForm(form):
 											log('Syntax error: Rule ' + urllib.parse.unquote(r) + ' cannot be compiled as it either uses an illegal operator (=, <=, >= or !!! allowed) or the right expression has illegal characters (letters, numbers, spaces, parens, and certain symbols (".,_-:/+%) allowed)', 'warn')
 										else:
 											rules.append([left, action, right, htab['uidsuffix'], uids, ssids, row['sub_priority'], 'ctl_rules row ' + urllib.parse.unquote(r), form['periodType']])
+											if row['dhis_ind'] and action == 'autocalculate' and left == 'R' and htab['uidsuffix'] != 'xta':
+												rules.append([left, 'indicator', right, htab['uidsuffix'], uids, ssids, row['sub_priority'], 'indicator for ctl_rules row ' + urllib.parse.unquote(r), row['dhis_ind']])
 
 							for x in range(1, 3):
 								j = 'degs' + str(x)
@@ -651,7 +850,7 @@ def makeForm(form):
 
 							subIndicatorsCount += 1
 
-				if(subIndicatorsCount > 0): 
+				if(subIndicatorsCount > 0):
 					if(len(htabs) == 1):
 						outputHTML += indicatorHTML_before.format(name=indicator['name'], frequency=indicator['frequency'], title=htab['type'] + ': ' + indicator['name'])
 					else:
@@ -663,17 +862,117 @@ def makeForm(form):
 
 		outputHTML += minorNavHTML_end
 
+	#skipping targets for now
+	#form['name'].count('Targets') == 0
+	if not(nofavorites) and form['name'].count('Narratives') == 0 and (not(specificForms) or form['uid'] in formsToOutput):
+
+		favoriteType = ''
+		if form['name'].count('Targets') > 0:
+			favoriteType = 'Targets'
+		elif form['name'].count('Results') > 0:
+			favoriteType = 'Results'
+
+		for i in range(len(form['vtabs'])):
+			vtab = form['vtabs'][i]
+
+			for k in range(len(vtab['indicators'])):
+				indicator = vtab['indicators'][k]
+
+				for row in indicator['rows']:
+
+					#check to see if the row is anything by AutoCalc
+					if row['sub_priority'] == 'Required' or row['sub_priority'] == 'Conditional' or row['sub_priority'] == 'Optional':
+						#Check to see if we should make a favorite for this indicator
+						#Check to see if this is actually an autocalc row that is mislabled
+						#print(indicator['name']+" - "+indicator['frequency'])
+
+						favoriteFirstDeShortName=getDataElement(list(findDataElementsFromRow(row))[0])['shortName']
+						#favoriteName="PEPFAR "+ISOQuarterToFYOctQuarter(favoritesISOQuarter)+" "+favoriteType+" "+indicator['name']+" "+getNumeratorDenominator(favoriteFirstDeShortName)+" "+getDisagg(favoriteFirstDeShortName)+" Completeness Review Precursor"
+
+						curISOQuarter="FY"+curYear()+"Q"+curQuarter()
+
+						favoriteName="PEPFAR "+favoritesISOQuarter+" "+favoriteType+" "+indicator['name']+" "+getNumeratorDenominator(favoriteFirstDeShortName)+" "+getDisagg(favoriteFirstDeShortName)+" Completeness Review Precursor"
+
+						favoriteDisplayName=favoriteName
+						favoriteDescription="This is an auto generated favorite made by MERTIDE, this is not intended to be deployed in its current form, but rather a precursor for PPM staff to create the completeness review pivot."
+
+						favoriteId=makeUidHash(favoriteName)
+
+						#log(favoriteName)
+						#no else statement, previous if that checks for a valid frequency would kick out sooner
+
+						favoriteISOPeriod=favoritesISOQuarter
+						favoritePeriodsPreCursor='{"periods": [{"id": ""}]}'
+						favoritePeriods=json.loads(favoritePeriodsPreCursor)
+
+
+						if favoriteType == 'Targets':
+							#favoriteISOPeriod=ISOQuarterToISOFYOctTARGET(favoritesISOQuarter)
+							#HARDCODE IS BAD
+							favoritePeriods['periods'][0]['id']='2019Oct'
+						elif indicator['frequency'] == 'Annually':
+							favoriteISOPeriod=ISOQuarterToISOFYOct(favoritesISOQuarter)
+							favoritePeriods['periods'][0]['id']=favoriteISOPeriod
+						elif indicator['frequency'] == 'Semiannually':
+							favoriteISOPeriod=ISOQuarterToISOSAApr(favoritesISOQuarter)
+							favoritePeriods['periods'][0]['id']=favoriteISOPeriod
+						elif indicator['frequency'] == 'Quarterly':
+							favoriteISOPeriod=favoritesISOQuarter
+							favoritePeriods['periods'][0]['id']=favoriteISOPeriod
+
+						favoriteDataDimensionsItems = {"dataDimensionItems": []}
+
+						for de in findDataElementsFromRow(row):
+							favoriteDataDimensionItemTypeFull = {"dataDimensionItemType": "DATA_ELEMENT","dataElement": {"id": ""}}
+							favoriteDataDimensionItemTypeFull["dataElement"]["id"] = str(de)
+							favoriteDataDimensionsItems["dataDimensionItems"].append(favoriteDataDimensionItemTypeFull)
+
+						favoriteNew=favoriteStub.copy()
+
+						favoriteNew['id'] = favoriteId
+						favoriteNew['name'] = favoriteName
+						favoriteNew['displayName'] = favoriteDisplayName
+						favoriteNew['description'] = favoriteDescription
+						favoriteNew['dataDimensionItems'] = favoriteDataDimensionsItems['dataDimensionItems']
+						favoriteNew['periods'] = favoritePeriods['periods']
+
+						if favoriteId not in favoritesCreated:
+							favoritesCreated.append(favoriteId)
+							if indicator['frequency'] == 'Annually':
+								favoriteAnnuallyJSON['reportTables'].append(favoriteNew)
+							if indicator['frequency'] == 'Semiannually':
+								favoriteSemiannuallyJSON['reportTables'].append(favoriteNew)
+							if indicator['frequency'] == 'Quarterly':
+								favoriteQuarterlyJSON['reportTables'].append(favoriteNew)
+
 	if not(noconnection):
 		for rule in rules:
 			# Get validation rule period
 			rulePeriod = rule[8]
-		
+
 			[left, leftjs, leftnames, ignore] = processMertideExpression(rule[0], rule, False, 'left', uidCache, skipCache, dataElementCache)
 			[right, rightjs, rightnames, rightMissingValue] = processMertideExpression(rule[2], rule, False, 'right', uidCache, skipCache, dataElementCache)
 
 			if right or rightjs:
 				if rule[1] == 'autocalculate':
-					dynamicjs += "                stella.autocalc(" + str(rightjs) + ", " + str(leftjs) + ");\n"
+					dynamicjs += "      stella.autocalc(" + str(rightjs) + ", " + str(leftjs) + ");\n"
+
+				elif rule[1] == 'indicator':
+					if rule[3] == 'dsd':
+						temprule = rule.copy()
+						temprule[3] = 'xta'
+						[tempright, ignore1, temprightnames, ignore2] = processMertideExpression(rule[2], temprule, False, 'right', uidCache, skipCache, dataElementCache)
+						right.extend(tempright)
+						rightnames.extend(temprightnames)
+					n = []
+					for x in right:
+						if x['optionCombo']:
+							n.append('#{' + x['id'] + '.' + x['optionCombo'] + '}')
+						else:
+							n.append('#{' + x['id'] + '}')
+
+					[uid, name] = rule[8].split(';')
+					exportIndicators.append([name, uid, n, ' + '.join(rightnames)])
 
 				else:
 					if left != [{}] and right != [{}]:
@@ -681,7 +980,7 @@ def makeForm(form):
 						j['importance'] = 'MEDIUM'
 						j['ruleType'] = 'VALIDATION'
 						j['periodType'] = rulePeriod
-						j['operator'] =  rule[1]
+						j['operator'] = rule[1]
 						j['leftSide'] = {}
 						j['rightSide'] = {}
 						j['leftSide']['dataElements'] = set([])
@@ -690,11 +989,13 @@ def makeForm(form):
 						for l in left:
 							j = addExpression(j, 'leftSide', l)
 
-						if j['operator'] == 'less_than_or_equal_to' or j['operator'] == 'greater_than_or_equal_to':
+						if j['operator'] == 'less_than_or_equal_to' or j['operator'] == 'greater_than_or_equal_to' or j['operator'] == 'equal_to':
 							if j['operator'] == 'less_than_or_equal_to':
 								j['name'] = ' <= '
-							else:
+							elif j['operator'] == 'greater_than_or_equal_to':
 								j['name'] = ' >= '
+							else:
+								j['name'] = ' == '
 
 							if rule[6] in skip:
 								j['leftSide']['missingValueStrategy'] = 'SKIP_IF_ALL_VALUES_MISSING'
@@ -740,24 +1041,24 @@ def makeForm(form):
 										j['id'] = makeUid()
 								else:
 									j['id'] = makeUid()
-							
+
 							# Shorten the name if it's over 230 chars
 							j['name'] = j['name'][0:230]
-							
+
 							# Shorten the descriptions if they are over 255 chars
 							j['leftSide']['description'] = j['leftSide']['description'][0:255]
 							j['rightSide']['description'] = j['rightSide']['description'][0:255]
-							
+
 							rulesCache[h] = 'used' + form['uid']
 
-							# Only add each rule once to DHIS 2
+							# Only add each rule once to DHIS2
 							if not(j['id'].startswith('used')):
 								if h in dhisRulesCache:
 									modified = False
 									for key in dhisRulesCache[h]:
 										if key == 'leftSide' or key == 'rightSide':
 											for key2 in dhisRulesCache[h][key]:
-												if (dhisRulesCache[h][key][key2] != j[key][key2] and 
+												if (dhisRulesCache[h][key][key2] != j[key][key2] and
 														(key2 != 'expression' or hashExpression(dhisRulesCache[h][key][key2]) != hashExpression(j[key][key2]))):
 													modified = True
 													break
@@ -773,8 +1074,10 @@ def makeForm(form):
 								else:
 									newRules.append(j)
 
+								validationRules.append(j)
+
 							if j['operator'] == 'exclusive_pair':
-								dynamicjs += "                meany.autoexclude(" + str(leftjs) + ", " + str(rightjs) + ");\n"
+								dynamicjs += "      meany.autoexclude(" + str(leftjs) + ", " + str(rightjs) + ");\n"
 
 					else:
 						if left == [{}]:
@@ -789,21 +1092,22 @@ def makeForm(form):
 				groups = form['dataElementGroups'].copy()
 				groups.append(req.json()['dataElementGroups'][0]['id'] + '_' + i)
 				for uid in degs[i]:
-					addDataElement(form, uid, groups)
-			except Exception as e: 
-				log('Syntax error: Problem with data element group set ' + i, 'warn')
+					addDataElement(form, uid, groups, indicator['frequency'])
+			except Exception as e:
+				pass
+				#log('Syntax error: Problem with data element group set ' + i, 'warn')
 
 	else:
-		log('Not connected to DHIS 2, so skipping all rules and data element group sets', 'warn')
+		log('Not connected to DHIS2, so skipping all rules and data element group sets', 'warn')
 
 
 	# Set special JS extras
 	outputHTML = outputHTML.replace("//#dataValuesLoaded#", '\n' + dynamicjs) #cannot use format here because all the curly braces {} in the javascript and css
-	#outputHTML = outputHTML.replace("//#formReady#","") 
-	#outputHTML = outputHTML.replace("//#dataValueSaved#","") 
+	#outputHTML = outputHTML.replace("//#formReady#","")
+	#outputHTML = outputHTML.replace("//#dataValueSaved#","")
 
 	outputHTML += open(setuptabsHTML).read()
-	outputHTML += majorNavHTML_end + '<!-- End Custom DHIS 2 Form -->\n\n'
+	outputHTML += majorNavHTML_end + '<!-- End Custom DHIS2 Form -->\n\n'
 
 	# Create the standalone form preview file
 	if severe:
@@ -812,17 +1116,40 @@ def makeForm(form):
 	elif specificForms and form['uid'] not in formsToOutput:
 		log('Skipping form: ' + form['name'] + ' - ' + form['uid'])
 	else:
-		log('Creating form: ' + form['name'] + ' - ' + form['uid'])
+		log('Creating form: ' + form['name'] + ' - ' + form['periodType'] + ' - ' + form['uid'])
 		formFile = open(outDir+formFileName+'.html', 'w')
-		formFile.write(open(standaloneHTMLa).read().replace('MER Results: Facility Based', form['name']))
-		formFile.write(outputHTML)
+
+		#Creats an offline version of the form for offline specific requests.
+		offlineOutputHTML = open(standaloneHTMLa).read().replace('MER Results: Facility Based', form['name'])
+
+		insertArray = ""
+		insertArray2 = ""
+		for key, value in formDataElementList.items():
+			if value['form'] == form['name']:
+				insertArray += "dataElementList['"+key+"'] = '"+value['name']+"';\n"
+			for cocKey, cocValue in masterCategoryOptionComboList.items():
+				if cocValue['categoryComboID'] == value['categoryCombo']:
+					insertArray2 += "catOptionCombo['"+cocKey+"'] = '"+cocValue['name']+"';\n"
+
+
+		offlineOutputHTML += outputHTML
+
+		insertArrayCombined = insertArray+insertArray2
+		offlineOutputHTML = offlineOutputHTML.replace('//dataElementListHere', insertArrayCombined)
+
+		if form['categoryCombo'] == 'bjDvmb4bfuf':
+			offlineOutputHTML = re.sub(r'<!--attributeComboStart(.*)attributeComboEnd-->','',offlineOutputHTML, flags=re.S)
+
+		formFile.write(offlineOutputHTML)
+
+
 		formFile.write(open(standaloneHTMLb).read())
 		formFile.close()
 
 	# Format the dataset for the ouput XML files
 	datasetPrefix = open('codechunks/dataset_prefix.xml').read() \
 		.format(code=codeName(form['shortshortname']), name=form['name'], shortname=form['shortshortname'], uid=form['uid'], periodType=form['periodType'],
-				categoryCombo=form['categoryCombo'], version=form['version'], approveData=form['approveData'] )
+				categoryCombo=form['categoryCombo'], version=form['version'], approveData=form['approveData'], userGroupAccesses=form['userGroupAccesses'] )
 
 	#   2.21 to 2.24
 	#   dataElements = '			<dataElements>\n'
@@ -842,6 +1169,7 @@ def makeForm(form):
 		dataElements += '			   </dataSetElement>\n'
 	dataElements += '		   </dataSetElements>\n'
 
+	# .xml export file
 	if not(specificForms) or (form['uid'] in formsToOutput):
 		exportDataEntryForms.append(
 			'	   <dataEntryForm id="' + form['formUid'] + '">\n' +
@@ -853,11 +1181,15 @@ def makeForm(form):
 			'		   <format>2</format>\n' +
 			'	   </dataEntryForm>\n')
 
+		# Offline forms
+
+		exportStaticHTML.append(outputHTML)
+
 		thisDatasetPrefix = datasetPrefix
-		
+
 		if form['workflow']:
 			thisDatasetPrefix += '		  <workflow id="' + form['workflow'] + '" />\n'
-			
+
 		exportDatasets.append(thisDatasetPrefix +
 			'		   <dataEntryForm id="' + form['formUid'] + '" />\n' +
 			dataElements +
@@ -899,10 +1231,28 @@ def doControlFile(controlFileName):
 				form['workflow'] = row['form_awf_uid']
 				form['vtabs'] = []
 				form['dataElementGroups'] = []
-				if row['deg1_name']: form['dataElementGroups'].append(row['deg1_uid'] + '_' + row['deg1_name'])
-				if row['deg2_name']: form['dataElementGroups'].append(row['deg2_uid'] + '_' + row['deg2_name'])
-				if row['deg3_name']: form['dataElementGroups'].append(row['deg3_uid'] + '_' + row['deg3_name'])
-				if row['deg4_name']: form['dataElementGroups'].append(row['deg4_uid'] + '_' + row['deg4_name'])
+				form['userGroupAccesses'] = ''
+				for key in row:
+					if key is not None:
+						if key.startswith('deg') and row[key]:
+							form['dataElementGroups'].append(row[key])
+						elif key.startswith('group'):
+							value = row[key]
+							if value:
+								if (';' in value):
+									parts = value.split(';')
+									group = parts[0]
+									permissions = parts[1]
+								else:
+									group = value
+									permissions = 'r-r-----'
+
+								if form['userGroupAccesses']:
+									form['userGroupAccesses'] += '\n\t\t\t\t'
+
+								form['userGroupAccesses'] += '<userGroupAccess>\n\t\t\t\t\t<id>{group}</id>\n\t\t\t\t\t<access>{permissions}</access>\n\t\t\t\t\t<userGroupUid>{group}</userGroupUid>\n\t\t\t\t</userGroupAccess>' \
+									.format(group=group, permissions=permissions)
+
 			elif type == 'VTAB':
 				if not form['name']: # Haven't seen a FORM yet
 					log('Error in ' + controlFileName + ': expected FORM before VTAB.', 'warn')
@@ -967,12 +1317,14 @@ def formatIndicator(key, value):
 	return(r)
 
 # The main function
-def main(argv):	
-	sysargs = ['','','',False,'']
-	usage = 'usage: mertide.py -i [merform.csv|merdirectory] -d /path/to/disagg/files/ [options]\n  options:\n    -n, --noconnection Parse CSV even if there is no connection to DHIS2\n    -f formuid1234,formid2468, [--forms=formuid1234,formid2468]\n	Only include forms with uid formuid1234 and formuid2468\n    -h,--help Prints this message'
-	
+def main(argv):
+	curISOQuarter=curYear()+"Q"+curQuarter()
+	# Order of sysargs:
+	sysargs = ['','','',False,'',False,curISOQuarter,False]
+	usage = 'usage: mertide.py -i [merform.csv|merdirectory] -d /path/to/disagg/files/ [options]\n	options:\n	  -n, --noconnection\n			Parse CSV even if there is no connection to DHIS2\n\n	  -f formuid1234,formid2468, --forms=formuid1234,formid2468\n			Only include forms with uid formuid1234 and formuid2468\n\n	  --nofavorites\n			Do not output favorites\n\n	  --html\n			Outputs static HTML versions of the forms\n			for uploading directly to DHIS2\n\n	  --favoriteisoquarter=2019Q1\n			Year and Quarter in which to create favorites override\n			(Defaults to current quarter)\n\n	 -h, --help\n		Prints this message\n'
+
 	try:
-		opts, args = getopt.getopt(argv,'i:d:f:h:n',['input=','disaggs=','noconnection','forms=','help'])
+		opts, args = getopt.getopt(argv,'i:d:f:h:n',['input=','disaggs=','noconnection','forms=','nofavorites','favoriteisoquarter=','html','help'])
 	except getopt.GetoptError:
 		log(usage)
 		sys.exit(2)
@@ -1015,14 +1367,44 @@ def main(argv):
 						log(usage)
 						sys.exit(2)
 				sysargs[4] = formuids
-	
+		elif opt in ('--nofavorites'):
+			sysargs[5] = True
+		elif opt in ('--html'):
+			sysargs[7] = True
+		elif opt in ('--favoriteisoquarter'):
+			#Example: 2018Q4
+			#Check length, check for the 20, check for the Q
+			if len(arg) == 6 and arg[:2] == '20' and arg[-2] == 'Q':
+				#Check Quarter
+				if arg[-1] == '1' or arg[-1] == '2' or arg[-1] == '3' or arg[-1] == '4':
+					#Check year
+					try:
+						if int(arg[2:4]) >= 18:
+							sysargs[6] = arg
+						else:
+							log(usage)
+							sys.exit(5)
+					except:
+						log(usage)
+						sys.exit(4)
+				else:
+					log(usage)
+					sys.exit(3)
+			else:
+				log(usage)
+				sys.exit(2)
+
+
 	if sysargs[2] == '' or (sysargs[0] == '' and sysargs[1] == ''):
 		log(usage)
 		sys.exit(2)
- 
+
 	return sysargs
 
+masterDataElementList = {}
+formDataElementList = {}
 dataElementCache = {}
+masterCategoryOptionComboList = {}
 catComboCache = {}
 optionCache = {}
 cocCache = {}
@@ -1031,9 +1413,15 @@ rulesCache = {}
 dhisRulesCache = {}
 newRules = []
 modifiedRules = []
+validationRules = []
 oldRules = []
-topLevelIndicators = {}
 inputArgs = []
+favoritesCreated = []
+favoriteAnnuallyJSON=json.loads('{"reportTables": []}')
+favoriteSemiannuallyJSON=json.loads('{"reportTables": []}')
+favoriteQuarterlyJSON=json.loads('{"reportTables": []}')
+dataElementCadence= []
+
 noconnection = False
 severe = False
 
@@ -1061,10 +1449,14 @@ logFile = open(outDir+'mertide.log', 'w')
 # Get those args!
 if __name__ == '__main__':
    inputArgs = main(sys.argv[1:])
+
 controlDir = inputArgs[0]
 controlFile = inputArgs[1]
 comboDir = inputArgs[2]
 noconnection = inputArgs[3]
+nofavorites = inputArgs[5]
+favoritesISOQuarter = inputArgs[6]
+statichtml = inputArgs[7]
 
 if controlDir:
 	log('Control Folder: ' + controlDir)
@@ -1101,13 +1493,25 @@ try:
 	jsessionid = req.cookies.get_dict()
 	req = requests.get(api + 'resources.json', cookies=jsessionid)
 	if req.json()['resources'][0]:
-		log('Connected to DHIS 2 using ' + api)
+		log('Connected to DHIS2 using ' + api)
 	else:
-		raise ConnectionError('Not connected to DHIS 2')
+		raise ConnectionError('Not connected to DHIS2')
 except:
-	log('Not connected to DHIS 2')
+	log('Not connected to DHIS2')
 	if not(noconnection):
 		sys.exit(2)
+
+# get the favorite stub
+if not nofavorites:
+	try:
+		favoriteStub = json.load(open('./codechunks/favorite_stub.json', 'r'))
+		log('Outputting favorites for '+favoritesISOQuarter)
+	except FileNotFoundError:
+		log('favorite stub not found exiting')
+		sys.exit(2)
+else:
+	log('Skipping favorite generation')
+
 
 # CSS
 cssStart = '<style>'
@@ -1123,7 +1527,7 @@ for (dirpath, dirnames, filenames) in os.walk(jsDir):
 	js.extend(filenames)
 	break
 
-htmlBefore = "<!-- Start Custom DHIS 2 Form -->\n"
+htmlBefore = "<!-- Start Custom DHIS2 Form -->\n"
 
 # Standalone wrappers
 standaloneHTMLa = './codechunks/standaloneform_before.html'
@@ -1135,20 +1539,18 @@ divClose = '</div>\n'
 
 # Major Navigation List with HTML
 majorNavHTML_before = \
+	'<div style="display:none" id="PEPFAR_main">' + \
 	'<div class="PEPFAR_reporting_legend">\n' + \
-	'\t<i class="fa fa-square PEPFAR_quarterly_square">&nbsp;</i>\n' + \
-	'\t<span>Quarterly Reporting</span>\n' + \
-	'\t<i class="fa fa-square PEPFAR_semiannually_square">&nbsp;</i>\n' + \
-	'\t<span>Semiannually Reporting</span>\n' + \
-	'\t<i class="fa fa-square PEPFAR_annually_square">&nbsp;</i>\n' + \
-	'\t<span>Annually Reporting</span>\n</div>\n\n' + \
+	'\t<i class="fa fa-square PEPFAR_quarterly_square">&nbsp;</i><span>Quarterly Reporting</span>\n' + \
+	'\t<i class="fa fa-square PEPFAR_semiannually_square">&nbsp;</i><span>Semiannually Reporting</span>\n' + \
+	'\t<i class="fa fa-square PEPFAR_annually_square">&nbsp;</i><span>Annually Reporting</span>\n</div>\n\n' + \
 	'<div id="PEPFAR_Tabs_vertical" class="ui-tabs-vertical ui-helper-clearfix">\n' + \
 	'<ul class="ui-helper-hidden">'
 majorNavHTML_li = '\t<li class="ui-corner-left"><a href="#PEPFAR_Tabs_vertical_%s">%s</a></li>'
 majorNavHTML_after = ulClose
-majorNavHTML_end = divClose
+majorNavHTML_end = divClose + divClose
 
-allHtabs = [{'type': 'DSD', 'label': 'DSD', 'uidsuffix': 'dsd'}, {'type': 'TA', 'label': 'TA-SDI', 'uidsuffix': 'xta'}, {'type': 'NA', 'label': 'Other', 'uidsuffix': 'xna'}]
+allHtabs = [{'type': 'DSD', 'label': 'DSD', 'uidsuffix': 'dsd'}, {'type': 'TA', 'label': 'TA-SDI', 'uidsuffix': 'xta'}, {'type': 'CS', 'label': 'CS', 'uidsuffix': 'xcs'}, {'type': 'NA', 'label': 'Other', 'uidsuffix': 'xna'}]
 
 # Minor Navigation List with HTML
 minorNavHTML_before = '<div id="PEPFAR_Tabs_vertical_%s">\n<div id="PEPFAR_Tabs_h_%s">\n<ul class="ui-helper-hidden">'
@@ -1192,7 +1594,9 @@ htmlBefore+="\n"+jsEnd+"\n"
 htmlBefore+=majorNavHTML_before+"\n"
 
 exportDataEntryForms = [] #Array of XML <dataEntryForm> definitions to export (v2.22 and following)
+exportStaticHTML = [] #Array of static HTML forms
 exportDatasets = [] #Array of XML <dataset> definitions to export (v2.22 and following)
+exportIndicators = []
 dataElementGroups = defaultdict(set) # Data element groups and their members for export
 
 # Top-level logic
@@ -1203,6 +1607,8 @@ random.seed()
 #	 for filename in filenames:
 #		 if re.match('^mertide_.*csv$',filename):
 #			 doControlFile(dirpath + '/' + filename)
+
+# FIXME: Add comments! :)
 
 if not(noconnection):
 	# Cache currently existing rules
@@ -1221,14 +1627,30 @@ if controlDir:
 			o.write(ih.read())
 	o.close()
 
+# Pull Data Element and Cat Option Combo data from connected dhis2 server
+getAllDataElements()
+getAllCategoryOptionCombos()
 doControlFile(controlFile)
+
+# Write indicator file
+
+indicator = open('codechunks/indicator.json').read()
+j = []
+for i in exportIndicators:
+	n = '+'.join(i[2])
+	shortName = i[0][:50]
+	j.append(indicator.format(name=i[0], uid=i[1], numerator=n, numeratorDescription=i[3], shortName=shortName))
+export = open(outDir+'indicators.json', 'w')
+export.write('{\n  "indicators": [\n' + '\n,\n'.join(j) + '  ]\n}')
+export.close()
+
 
 # Write XML import file for api/xx/metadata
 
 if severe:
-	log('Skipping datasets.xml due to severe error')
+	log('Skipping DSsDEFsDEGs.xml due to severe error')
 else:
-	export = open(outDir+'datasets.xml', 'w')
+	export = open(outDir + 'DSsDEFsDEGs.xml', 'w')
 	export.write(open('codechunks/datasets_before.xml').read())
 
 	export.write('	<dataEntryForms>\n')
@@ -1243,18 +1665,24 @@ else:
 
 	writeDataElementGroups(export)
 
-	if len(topLevelIndicators) > 0:
-		export.write('	<indicators>\n')
-		for indicator in topLevelIndicators:
-			log('Creating indicator: ' + indicator + ' - ' + makeUidHash('datimIndicator' + indicator))
-			export.write(formatIndicator(indicator, topLevelIndicators[indicator]))
-		export.write('	</indicators>\n')
-
 	export.write('</metadata>\n')
 	export.close()
-	z = zipfile.ZipFile(outDir + 'datasets.xml.zip', 'w', zipfile.ZIP_DEFLATED)
-	z.write(outDir+'datasets.xml')
+	z = zipfile.ZipFile(outDir + 'DSsDEFsDEGs.xml.zip', 'w', zipfile.ZIP_DEFLATED)
+	z.write(outDir + 'DSsDEFsDEGs.xml')
 	z.close()
+
+if not(nofavorites):
+	export = open(outDir + 'precursorFavoritesAnnually.json', 'w')
+	export.write(json.dumps(favoriteAnnuallyJSON, sort_keys=True, indent=2, separators=(',', ': ')))
+	export.close()
+
+	export = open(outDir + 'precursorFavoritesSemiannually.json', 'w')
+	export.write(json.dumps(favoriteSemiannuallyJSON, sort_keys=True, indent=2, separators=(',', ': ')))
+	export.close()
+
+	export = open(outDir + 'precursorFavoritesQuarterly.json', 'w')
+	export.write(json.dumps(favoriteQuarterlyJSON, sort_keys=True, indent=2, separators=(',', ': ')))
+	export.close()
 
 if not(noconnection):
 	deleteRules = ''
@@ -1273,9 +1701,18 @@ if not(noconnection):
 		deleteRules += "# dhis_api --request DELETE --api-request='validationRules/" + r['id'] + "'\n"
 		addRulesToGroup += "# dhis_api --request POST --api-request='validationRuleGroups/wnFo1vX2IW3/validationRules/" + r['id'] + "'\n"
 
+	for r in validationRules:
+		deleteRules += "dhis_api --request DELETE --api-request='validationRules/" + r['id'] + "'\n"
+		addRulesToGroup += "dhis_api --request POST --api-request='validationRuleGroups/wnFo1vX2IW3/validationRules/" + r['id'] + "'\n"
+
 	if severe:
 		log('Skipping validation rule JSONs due to severe error')
 	else:
+
+		export = open(outDir + 'validationRules.json', 'w')
+		export.write(json.dumps({'validationRules': validationRules}, sort_keys=True, indent=2, separators=(',', ': ')))
+
+
 		export = open(outDir + 'newValidationRules.json', 'w')
 		export.write(json.dumps({'validationRules': newRules}, sort_keys=True, indent=2, separators=(',', ': ')))
 		export.close()
@@ -1303,5 +1740,18 @@ if not(noconnection):
 		os.fchmod(export.fileno(), 0o755) # Make the script executable
 		export.close()
 
+		export = open(outDir + 'dataElements.tsv', 'w')
+		for key, value in formDataElementList.items():
+			export.write(key+"\t"+value['type']+"\t"+value['form']+"\t"+value['categoryCombo']+"\t"+value['name']+"\t"+value['frequency']+"\n")
+
+		export.close()
+
+
+getDataElementCadence()
+export = open(outDir + 'dataElementCadence.json', 'w')
+export.write(json.dumps({'period' : favoritesISOQuarter, 'dataElements': dataElementCadence}, sort_keys=True, indent=2, separators=(',', ': ')))
+export.close()
+
 log('Finished processing control file, exiting normally')
+
 logFile.close()

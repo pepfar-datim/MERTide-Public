@@ -12,6 +12,7 @@ var meany = {};
 
 meany.autoexcludeindex = {};
 meany.autoexcluderules = [];
+meany.loaded = false;
 
 /**
  * Load autoexclude rules into meany.autoexcluderules and meany.autoexcludeindex.
@@ -52,11 +53,40 @@ meany.autoexclude = function (left, right) {
     // before evaluating it from the right side's perspective
     meany.autoexcludeindex[r[0]].push(-1 * meany.autoexcluderules.length);
   });
+}
 
-  // Evaluate the rule from both perspectives, to see if anything on the form
-  // needs to be disabled or enabled
-  meany.evaluateRuleConsequences([left, right], false);
-  meany.evaluateRuleConsequences([right, left], false);
+/**
+ * Delete all loaded rules
+ */
+meany.kill = function () {
+  meany.autoexcludeindex = {};
+  meany.autoexcluderules = [];
+  meany.loaded = false;
+};
+
+/**
+ * Reset all form fields to enabled
+ */
+meany.erase = function () {
+  $('.muex_disabled').prop('disabled', false).removeClass('muex_disabled').css('background-color', 'rgb(255, 255, 255)');
+  $('.muex_conflict').prop('disabled', false).removeClass('muex_conflict').css('background-color', 'rgb(255, 255, 255)');
+  meany.loaded = false;
+};
+
+/**
+ * Run all of the rules to potentially disable relevant form fields
+ */
+meany.load = function () {
+  // meany.erase should have been run just before this, so all form fields are enabled
+
+  meany.autoexcluderules.forEach(function(rule) {
+    // Evaluate the rule from both perspectives, to see if anything on the form
+    // needs to be disabled or enabled
+    meany.evaluateRuleConsequences([rule[0], rule[1]], false);
+    meany.evaluateRuleConsequences([rule[1], rule[0]], false);
+  });
+
+  meany.loaded = true;
 }
 
 /**
@@ -228,6 +258,12 @@ meany.keepCocDisabled = function (rule, ssid, coc) {
  * field-by-field basis.
  */
 meany.maybeEnableOperand = function (operand) {
+  // During load, we enable all fields and then progressively disable them,
+  // so we don't need to run this function if we haven't finished loading yet
+  if (!meany.loaded) {
+    return;
+  }
+
   var ssid, cocs;
   [ssid, cocs] = operand;
   if (ssid !== '' && ssid in meany.autoexcludeindex) {
@@ -278,17 +314,4 @@ meany.disableOperand = function (operand) {
     $('.si_' + ssid).find('input:not([readonly])').filter(function() { return this.value != ''; }).prop('disabled', false).addClass('muex_conflict').removeClass('muex_disabled');
     $('.si_' + ssid).find('input:not([readonly])').filter(function() { return this.value == ''; }).prop('disabled', true).addClass('muex_disabled').removeClass('muex_conflict');
   }
-};
-
-/**
- * Reset all form fields to enabled, before loading the rules that may disable them
- */
-meany.reset = function () {
-  $('input.muex_conflict').each(function () {
-    $(this).prop('disabled', false).removeClass('muex_conflict');
-  });
-
-  $('input.muex_disabled').each(function () {
-    $(this).prop('disabled', false).removeClass('muex_disabled');
-  });
 };

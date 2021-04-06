@@ -1,14 +1,13 @@
 		<dataSet code="{code}" name="{name}" shortName="{shortname}" id="{uid}">
 			<externalAccess>false</externalAccess>
-			<publicAccess>--------</publicAccess>
+			<publicAccess>r-------</publicAccess>
 			<periodType>{periodType}</periodType>
-			<categoryCombo id="{categoryCombo}" />
+			<categoryCombo id="bjDvmb4bfuf" />
 			<mobile>false</mobile>
 			<version>{version}</version>
-			<expiryDays>83</expiryDays>
+			<expiryDays>0</expiryDays>
 			<timelyDays>15</timelyDays>
 			<notifyCompletingUser>false</notifyCompletingUser>
-			<approveData>{approveData}</approveData>
 			<openFuturePeriods>0</openFuturePeriods>
 			<fieldCombinationRequired>false</fieldCombinationRequired>
 			<validCompleteOnly>true</validCompleteOnly>
@@ -17,6 +16,3 @@
 			<dataElementDecoration>false</dataElementDecoration>
 			<renderAsTabs>false</renderAsTabs>
 			<renderHorizontally>false</renderHorizontally>
-			<userGroupAccesses>
-				{userGroupAccesses}
-			</userGroupAccesses>

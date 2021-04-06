@@ -72,7 +72,8 @@
 .PEPFAR_reporting_legend {
 	text-align:right;
 	display:block;
-	margin:10px
+	margin:10px;
+	height:26px;
 }
 
 .PEPFAR_Form_Title{
@@ -125,6 +126,13 @@
 .PEPFAR_annually_square {
 	font-size:26px;
 	color:#68468F;
+}
+
+.PEPFAR_spinner {
+	font-size:26px;
+	width: 26px;
+	line-height: 26px;
+	height: 26px;
 }
 
 .PEPFAR_Form_Title::after {
@@ -188,6 +196,10 @@
 }
 
 .PEPFAR_Form_Priority_required{
+	color: #ffffff;
+	background-color: #66a5f4;
+}
+.PEPFAR_Form_Priority_required_description{
 	color: #ffffff;
 	background-color: #66a5f4;
 }
@@ -419,15 +431,14 @@ background-color: #D6E0F5;
 .ui-tabs-vertical
 {
     width: 100%;
-    min-width: 200px;
 }
 
 .ui-tabs-vertical .ui-tabs-nav
 {
     padding: 2px 2px 0px 2px;
     float: left;
-    width: 20%;
-    min-width: 10em;
+    width: 13%;
+    min-width: 155px;
 }
 
 .ui-tabs-vertical .ui-tabs-nav li
@@ -481,7 +492,7 @@ background-color: #D6E0F5;
     padding: 0em !important;
     float: left;
     width: 78%;
-    min-width: 800px;
+    min-width: 860px;
 }
 .ui-tabs .ui-tabs-panel
 {
@@ -505,11 +516,21 @@ background-color: #D6E0F5;
 .input_total {
   padding: 5px 2px 2px 2px;
   height: 19px;
-  border: 1px solid #aaa;
-  background: #ddd;
   width: 40px;
   display: inline-block;
   font-size: 12px;
+  border: 1px solid #aaa;
+  background: #ddd;
+}
+
+.PEPFAR_Form_EntryField > span.val {
+  padding: 5px 2px 2px 2px;
+  height: 19px;
+  width: 40px;
+  display: inline-block;
+  font-size: 12px;
+  border: 1px solid #333;
+  background: #fff;
 }
 
 .word_subtotal {

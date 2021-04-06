@@ -18,7 +18,17 @@ qbert.getPeriod = function () {
   return $('#selectedPeriodId').val();
 };
 
-qbert.reset = function (form) {
+qbert.erase = function () {
+  $('.expanded').parent().find('input').each(function () {
+    qbert._enable(this);
+  });
+  $('.expanded').parent().find('textarea').each(function () {
+    qbert._enable(this);
+  });
+  $('.expanded').removeClass('expanded').removeClass('ic_title_disabled').next('.PEPFAR_Form_Collapse').slideDown();
+};
+
+qbert.eraseForm = function (form) {
   //Expand
   $(form).removeClass('expanded').next(".PEPFAR_Form_Collapse").slideDown();
   //reset the Title
@@ -48,8 +58,12 @@ qbert.disable = function (form) {
   $(form).parent().find("input").each(function () {
     qbert._disable(this);
   });
-  //set input elements as RO
+  //set textarea elements as RO
   $(form).parent().find("textarea").each(function () {
+    qbert._disable(this);
+  });
+  //set select elements as RO
+  $(form).parent().find("select").each(function () {
     qbert._disable(this);
   });
   //add warning text
@@ -58,11 +72,7 @@ qbert.disable = function (form) {
 
 //disable a form element
 qbert._disable = function (elem) {
-  if ($(elem).val() === '') {
-    $(elem).addClass('ic_disabled').prop('disabled', true);
-  } else {
-    $(elem).addClass('ic_disabled').prop('disabled', false);
-  }
+  $(elem).addClass('ic_disabled').prop('disabled', true);
 };
 
 qbert._enable = function (elem) {
@@ -88,7 +98,7 @@ qbert.load = function () {
     //Reset the indicators
     var noentry = $(".ic_title_disabled");
     $(noentry).each(function () {
-      qbert.reset(this);
+      qbert.eraseForm(this);
     });
 
     //only show annual in Q4 of FYOCT

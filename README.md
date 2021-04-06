@@ -8,6 +8,10 @@ A tool for creation of PEPFAR Monitoring, Evaluation, and Reporting (MER) forms 
 
 In order to run MERtide, you only need Python 3.x with these libraries, most of which should be installed by default: base64, collections, copy, csv, defaultdict, getopt, hashlib, json, operator, os, random, re, requests, string, sys, urllib, xml, zipfile, and zlib.
 
+You will need your `/opt/dhis2/dish.json` to contain the admin user/password info for your DHIS2 instance. A template file exists in the repo
+
+The proper data elements and category option combos must exist in your targeted DHIS2 instance for MERTide to run. For this repo upload `public_metadata.xml` found in the samples folder.
+
 To run MERtide, use a command like this:
 ```
 python3 mertide.py -i controlfile.csv -d disaggs/

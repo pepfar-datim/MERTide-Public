@@ -55,24 +55,39 @@ stella.autocalc = function (source, target) {
     if (stella.autocalcindex[s[0]].indexOf(stella.autocalcrules.length - 1) === -1) {
       stella.autocalcindex[s[0]].push(stella.autocalcrules.length - 1);
     }
-
   });
-
-  // Now that we've loaded this rule, run it so that the totals begin with the correct values
-  stella.sumTotal(source, target);
 };
 
 /**
- * Update rows, columns, and non-custom totals when loading the page
+ * Delete all loaded autocalculations
+ */
+stella.kill = function () {
+  stella.autocalcindex = {};
+  stella.autocalcrules = [];
+};
+
+/**
+ * Remove all displayed autocalculations
+ */
+stella.erase = function () {
+  $('[class*="si_"]').find('.input_total').html('<span class="word_subtotal">Subtotal</span>');
+};
+
+/**
+ * Update rows, columns, non-custom and custom totals when loading the page
  */
 stella.load = function () {
   $('[class*="si_"]').each(function (i, d) {
-    var c = $(this).attr('class');
-    var ssid = c.substr(c.indexOf('si_') + 3, 8);
-    stella.sumSlice(ssid, 'row');
-    stella.sumSlice(ssid, 'col');
-    stella.sumTotal([[ssid]], ssid);
+    var ssid = this.className.match('si_(.{8})')[1]; // Use the ssid to sum
+    stella.sumSlice(ssid, 'row');                    // the rows,
+    stella.sumSlice(ssid, 'col');                    // the columns,
+    stella.sumTotal([[ssid]], ssid);                 // and the non-custom totals
   });
+
+  // For the custom totals, simply consider every rule once
+  for (var r = 0; r < stella.autocalcrules.length; r++) {
+    stella.sumTotal(stella.autocalcrules[r][0], stella.autocalcrules[r][1]);
+  }
 };
 
 /**
@@ -85,8 +100,7 @@ stella.changed = function (dv) {
   var ssid = '';
   $('[class*="si_"]').each(function (i, d) {
     if ($(this).find('[id^=' + dv.de + '-' + dv.co + ']').length > 0) {
-      var c = $(this).attr('class');
-      ssid = c.substr(c.indexOf('si_') + 3, 8);
+      ssid = this.className.match('si_(.{8})')[1];
       return;
     }
   });
@@ -112,34 +126,24 @@ stella.sumSlice = function (ssid, slice) {
 
   // Consider all Document Object Model (DOM) elements that match ssid
   $('.si_' + ssid).each(function () {
-    // Get all of this DOM element's entry divs
-    $(this).find('[class*=Form_EntryField]').each(function () {
-      // Skip the 'total' fields
-      if ($(this).attr('class').indexOf('tot') >= 0) {
-        return;
-      }
-
+    // Get all of this DOM element's entry divs that have slice and that don't have 'tot'
+    $(this).find('[class*=Form_EntryField][class*=' + slice + ']').not('[class*=tot]').each(function () {
       // Look for divs with 'slice' and then one or two numbers
-      var re = new RegExp(slice + '([0-9]{1,2})');
-      var s = re.exec($(this).attr('class'));
-
-      // If we found a relevant div, add it in
-      if (s && s.length === 2) {
-        var val = stella.getVal(this);
-        if (!isNaN(val)) {
-          if (!slices[s[1]]) {
-            slices[s[1]] = 0;
-          }
-          slices[s[1]] += +val;
-        }
+      var s = this.className.match(slice + '\\d')[0];
+      var val = stella.getVal(this);
+      if (!slices[s]) {
+        slices[s] = 0;
+      }
+      if (!isNaN(val)) {
+        slices[s] += +val;
       }
     });
   });
 
   // Take all slices that we found display the sum we calculated
-  slices.forEach(function (total, i) {
-    stella.display('.tot' + slice + i + '_' + ssid, total);
-  });
+  for (var s in slices) {
+    stella.display('.tot' + s + '_' + ssid, slices[s]);
+  }
 };
 
 /**
@@ -158,13 +162,11 @@ stella.sumTotal = function (source, target) {
 
     // Consider all DOM elements that match ssid
     $('.si_' + ssid).each(function () {
-      // Get all of this DOM element's entry divs
-      $(this).find('[class*=Form_EntryField]').each(function () {
-        var input = $(this).find('input');
-
-        // Skip the total fields.  Also, if we're only selecting a specific category option combo, 
-        // check to see whether this input has an id and whether that coc is referenced in that id
-        if ($(this).attr('class').indexOf('tot') === -1 && (!cocs || stella.idHasCoc($(input).attr('id'), cocs))) {
+      // Get all of this DOM element's entry divs, except for 'tot' fields
+      $(this).find('[class*=Form_EntryField]').not('[class*=tot]').each(function () {
+        // If we're only selecting a specific category option combo, check to see whether 
+        // this input has an id and whether that coc is referenced in that id
+        if (!cocs || stella.idHasCoc(this, cocs)) {
           // If we get a value, add it to the total
           var val = stella.getVal(this);
           if (!isNaN(val)) {
@@ -215,14 +217,28 @@ stella.getVal = function(selector) {
 /**
  * Determine whether a given id references a coc
  */
-stella.idHasCoc = function (id, cocs) {
-  if (typeof id === 'undefined') {
+stella.idHasCoc = function (w, cocs) {
+  try {
+    var x = $(w).find('input');
+    if (x.length) {
+      var id = x.attr('id');  
+    } else {
+      x = $(w).find('span.val');
+      if (!x.length) {
+        return false;
+      }
+      var id = x.attr('data-de') + '-' + x.attr('data-co') + '-val';
+    }
+
+    for (var c = 0; c < cocs.length; c++) {
+      if (id.indexOf(cocs[c]) !== -1) {
+        return true;
+      }
+    }
+
+    return false;
+
+  } catch(e) {
     return false;
   }
-  for (var c = 0; c < cocs.length; c++) {
-    if (id.indexOf(cocs[c]) !== -1) {
-      return true;
-    }
-  }
-  return false;
 };

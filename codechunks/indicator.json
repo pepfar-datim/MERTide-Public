@@ -1,0 +1,31 @@
+    {{
+      "annualized": false, 
+      "publicAccess": "r-------",
+      "attributeValues": [
+        {{
+          "attribute": {{
+            "id": "H5eprkl0cdi"
+          }}, 
+          "value": "PEPFAR"
+        }}, 
+        {{
+          "attribute": {{
+            "id": "mOITVltKxDP"
+          }}, 
+          "value": "SGACPublicAffairs@state.gov"
+        }}
+      ], 
+      "denominator": "1", 
+      "denominatorDescription": "1", 
+      "id": "{uid}", 
+      "indicatorType": {{
+        "id": "QEjvmP5XVSn"
+      }}, 
+      "legendSets": [], 
+      "name": "{name}", 
+      "numerator": "{numerator}",
+      "numeratorDescription": "{numeratorDescription}", 
+      "shortName": "{shortName}", 
+      "translations": [], 
+      "userAccesses": []
+    }}
