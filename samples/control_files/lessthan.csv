@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Type,form_name,vtab_name,ind_name,ind_freq,ctl_uniqueid,ctl_exclusive,ctl_rules,dhis_ind,sub_disagg,sub_priority,sub_heading,sub_text,sub_infopopup,de_dsd1,de_cc_dsd1,de_dsd2,de_cc_dsd2,de_dsd3,de_cc_dsd3,de_ta1,de_cc_ta1,de_ta2,de_cc_ta2,de_ta3,de_cc_ta3,de_cs1,de_cc_cs1,de_cs2,de_cc_cs2,de_cs3,de_cc_cs3,de_na1,de_cc_na1,de_na2,de_cc_na2,de_na3,de_cc_na3,degs1,degs2,degs3,ind_top_level,form_uid,form_dsf_uid,form_dsf_v,form_freq,form_atr,form_awf_tf,form_awf_uid,form_shortname,form_code,deg1_name,deg1_uid,deg2_name,deg2_uid,deg3_name,deg3_uid,deg4_name,deg4_uid,role1_uid,role2_uid,role3_uid,role4_uid
 FORM,Testing DataSet Less Than,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,R1QX0MRGCgJ,Al7SIyGXLcS,1,Quarterly,bjDvmb4bfuf,FALSE,,Testing DataSet Less Than,TESTING DATASET LESS THAN,,,,,,,,,,,,
 VTAB,,Vertical Tab,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
@@ -19,3 +20,26 @@ SUB,,,,,lt05,,,,valtest_age_coarse_and_sex_and_hiv_status,Required,LT Test 5 Coa
 SUB,,,,,,,"R.options:""valtest- Sex - Female""<=lt05.options:""valtest- Sex - Female"";R.options:""valtest- Sex - Male""<=lt05.options:""valtest- Sex - Male""",,valtest_sex,Required,Follow up questions should be less than each sex individually,,,iS1JOqv2RBM,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 IND,,,LT_05,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 SUB,,,,,lt06,,lt06.de2<=lt06.de1;lt06.de3<=lt06.de2,,valtest_default_x3,Required,"LT Test 6, 2 is less than 1, 3 is less than 2",,,ACvjFHvWwhS,,aF9mFHaBf3m,,XERjTeP4lJ4,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+=======
+Type,form_name,vtab_name,ind_name,ind_freq,ctl_uniqueid,ctl_exclusive,ctl_rules,sub_disagg,sub_priority,sub_heading,sub_text,sub_infopopup,de_dsd1,de_cc_dsd1,de_dsd2,de_cc_dsd2,de_dsd3,de_cc_dsd3,de_ta1,de_cc_ta1,de_ta2,de_cc_ta2,de_ta3,de_cc_ta3,de_cs1,de_cc_cs1,de_cs2,de_cc_cs2,de_cs3,de_cc_cs3,de_na1,de_cc_na1,de_na2,de_cc_na2,de_na3,de_cc_na3,dhis_ind,degs1,degs2,degs3,form_uid,form_dsf_uid,form_dsf_v,form_freq,form_atr,form_awf_tf,form_awf_uid,form_shortname,form_code,deg1,deg2,deg3,deg4,group1,group2,group3
+FORM,Testing DataSet Less Than,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,R1QX0MRGCgJ,Al7SIyGXLcS,1,Quarterly,bjDvmb4bfuf,FALSE,,Testing DataSet Less Than,TESTING DATASET LESS THAN,,,,,,
+VTAB,,Vertical Tab,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+IND,,,LT_01,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt01,,,valtest_default,Required,LT Test 1,Numerator,,lt01doyHxN9,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,,,R<=lt01,valtest_age_coarse_and_sex_and_hiv_status,Required,Coarse Disagg,,,lt01MbstfUZ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+IND,,,LT_02,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt02_female,,,valtest_default,Required,"LT Test 2 (Addition) - This and the following box are the ""Numerator"" and coarse disagg should be less than or equal to it.",Female,,lt02XurE8fs,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt02_male,,,valtest_default,Required,,Male,,lt02WpFGi8Y,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,,,R<=lt02_female+lt02_male,valtest_age_coarse_and_sex_and_hiv_status,Required,Coarse Disagg,,,lt02PEjgHw1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+IND,,,LT_03,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt03,,,valtest_sex,Required,LT Test 3 Coarse Disagg,,,lt03yeC7SO1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,,,"R<=lt03.options:""valtest- Sex - Female""",valtest_default,Required,Follow up question of only female component,,,lt03uyPpm13,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+IND,,,LT_04,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt04,,,valtest_age_coarse_and_sex_and_hiv_status,Required,LT Test 4 Coarse Disagg,,,lt04wV8iO4o,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,,,"R<=lt04.options:""valtest- Sex - Female""",valtest_default,Required,Follow up question of only female component,,,lt04bxzRHjL,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+IND,,,LT_05,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt05,,,valtest_age_coarse_and_sex_and_hiv_status,Required,LT Test 5 Coarse Disagg,,,lt05bEvlCc1,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,,,"R.options:""valtest- Sex - Female""<=lt05.options:""valtest- Sex - Female"";R.options:""valtest- Sex - Male""<=lt05.options:""valtest- Sex - Male""",valtest_sex,Required,Follow up questions should be less than each sex individually,,,lt05W9lu8Jm,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+IND,,,LT_05,Quarterly,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+SUB,,,,,lt06,,lt06.de2<=lt06.de1;lt06.de3<=lt06.de2,valtest_default_x3,Required,"LT Test 6, 2 is less than 1, 3 is less than 2",,,lt06BmOcG0v,,lt06t5MJqPH,,lt06CLxz9Tn,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47

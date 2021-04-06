@@ -140,6 +140,11 @@ def pepfarReportingQuarter(ISOQuarter,frequency):
 
 	return False
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 def ISOQuarterToFYOctQuarter(ISOQuarter):
 	year = int(ISOQuarter[:4])
 	quarter = int(ISOQuarter[-1])
@@ -282,7 +287,11 @@ def addDataElement(form, uid, groups, frequency, categoryCombo = False):
 		if form['name'].count('Targets') > 0:
 			formDataElementList[uid] = {'type': 'Target', 'name': masterDataElementList[uid]['name'], 'form': form['name'], 'categoryCombo': categoryCombo, 'frequency': frequency}
 		else:
+<<<<<<< HEAD
 			formDataElementList[uid] = {'type': 'Result', 'name': masterDataElementList[uid]['name'], 'form': form['name'], 'categoryCombo': categoryCombo, 'frequency': frequency}
+=======
+			formDataElementList[uid] = {'type': 'Target', 'name': masterDataElementList[uid]['name'], 'form': form['name'], 'categoryCombo': categoryCombo, 'frequency': frequency}
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 	else:
 		log('Cannot find data element ' + uid + ' in DHIS2')
 
@@ -304,6 +313,12 @@ def getAllCategoryOptionCombos():
 		masterCategoryOptionComboList[id] = {'name' : i['name'], 'id': i['id'], 'categoryComboName': i['categoryCombo']['name'], 'categoryComboID' : i['categoryCombo']['id']}
 
 # Puts DE from forms into a list to be put in the data store.
+<<<<<<< HEAD
+=======
+
+
+
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 def getDataElementCadence():
 	for key, value in formDataElementList.items():
 		if masterDataElementList[key]['shortName'].count('TARGET') == 0 and checkDataElementQuarter(formDataElementList[key]['frequency']):
@@ -311,6 +326,10 @@ def getDataElementCadence():
 			a['uid'] = masterDataElementList[key]['id']
 			a['shortName'] = masterDataElementList[key]['shortName']
 			dataElementCadence.append(a)
+<<<<<<< HEAD
+=======
+			
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 
 def checkDataElementQuarter(frequency):
 	quarter = int(favoritesISOQuarter[-1])
@@ -322,6 +341,10 @@ def checkDataElementQuarter(frequency):
 		return True
 	else:
 		return False
+<<<<<<< HEAD
+=======
+		
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 
 def findCo(category, coc):
 	for option in category:
@@ -427,8 +450,13 @@ def splitMertideExpression(expression):
 	else:
 		return([expression])
 
+<<<<<<< HEAD
 # Given a MERtide expression, returns an array of parsed expression, data element, category option,
 # category options list, category option combo, and missing value strategy override
+=======
+# Given a MERtide expression, returns an array of parsed expression, data element,
+# category option, category options list, and category option combo
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 def parseMertideExpression(expression):
 	# a is the variable to be returned, the array mentioned above
 	a = [urllib.parse.unquote(expression).strip(' '), False, [], [], [], []]
@@ -737,8 +765,13 @@ def makeForm(form):
 										log(form['name'] + ': The uid ' + uid + ' appears multiple times', 'warn')
 										warnUidCache.append(uid)
 									if masterDataElementList[uid]['categoryComboID'] not in ccs[uid]:
+<<<<<<< HEAD
 										log ("The data element " + masterDataElementList[uid]['name'] +
 											 " - " + uid + " DATIM cat combo " + masterDataElementList[uid]['categoryComboID'] +
+=======
+										log ("The data element " + masterDataElementList[uid]['name'] + 
+											 " - " + uid + " DATIM cat combo " + masterDataElementList[uid]['categoryComboID'] + 
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 											 " does not match the " + row['sub_disagg'] + ".html catcombo(s) " + ccs[uid], 'warn')
 
 									addDataElement(form, uid, form['dataElementGroups'], indicator['frequency'], ccs[uid])
@@ -750,9 +783,15 @@ def makeForm(form):
 									if val > 0:
 										if coc in masterCategoryOptionComboList:
 											if masterCategoryOptionComboList[coc]['categoryComboID'] != ccs[uid]:
+<<<<<<< HEAD
 												log("Cat Combo: " + masterCategoryOptionComboList[coc]['categoryComboName'] +
 													" - " + masterCategoryOptionComboList[coc]['categoryComboID'] +
 													" found in " + row['sub_disagg'] + ".html does not match the form of cat combo " +
+=======
+												log("Cat Combo: " + masterCategoryOptionComboList[coc]['categoryComboName'] + 
+													" - " + masterCategoryOptionComboList[coc]['categoryComboID'] + 
+													" found in " + row['sub_disagg'] + ".html does not match the form of cat combo " + 
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 													k + " " + ccs[uid] + " at " + indicator['name'], 'warn')
 										else:
 											log("Could not find coc in master list: " + row['sub_disagg'] + ". Val is " + str(val),'warn')
@@ -885,7 +924,11 @@ def makeForm(form):
 						#Check to see if we should make a favorite for this indicator
 						#Check to see if this is actually an autocalc row that is mislabled
 						#print(indicator['name']+" - "+indicator['frequency'])
+<<<<<<< HEAD
 
+=======
+						
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 						favoriteFirstDeShortName=getDataElement(list(findDataElementsFromRow(row))[0])['shortName']
 						#favoriteName="PEPFAR "+ISOQuarterToFYOctQuarter(favoritesISOQuarter)+" "+favoriteType+" "+indicator['name']+" "+getNumeratorDenominator(favoriteFirstDeShortName)+" "+getDisagg(favoriteFirstDeShortName)+" Completeness Review Precursor"
 
@@ -1119,7 +1162,14 @@ def makeForm(form):
 		log('Creating form: ' + form['name'] + ' - ' + form['periodType'] + ' - ' + form['uid'])
 		formFile = open(outDir+formFileName+'.html', 'w')
 
+<<<<<<< HEAD
 		#Creats an offline version of the form for offline specific requests.
+=======
+
+
+		#Creats an offline version of the form for offline specific requests.
+
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 		offlineOutputHTML = open(standaloneHTMLa).read().replace('MER Results: Facility Based', form['name'])
 
 		insertArray = ""
@@ -1372,6 +1422,10 @@ def main(argv):
 		elif opt in ('--html'):
 			sysargs[7] = True
 		elif opt in ('--favoriteisoquarter'):
+<<<<<<< HEAD
+=======
+			print(arg)
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 			#Example: 2018Q4
 			#Check length, check for the 20, check for the Q
 			if len(arg) == 6 and arg[:2] == '20' and arg[-2] == 'Q':
@@ -1541,6 +1595,10 @@ divClose = '</div>\n'
 majorNavHTML_before = \
 	'<div style="display:none" id="PEPFAR_main">' + \
 	'<div class="PEPFAR_reporting_legend">\n' + \
+<<<<<<< HEAD
+=======
+	'\t<span id="PEPFAR_loading"><i class="fa fa-cog fa-spin PEPFAR_spinner">&nbsp;</i><span>&nbsp;Loading</span>&nbsp;</span>\n' + \
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 	'\t<i class="fa fa-square PEPFAR_quarterly_square">&nbsp;</i><span>Quarterly Reporting</span>\n' + \
 	'\t<i class="fa fa-square PEPFAR_semiannually_square">&nbsp;</i><span>Semiannually Reporting</span>\n' + \
 	'\t<i class="fa fa-square PEPFAR_annually_square">&nbsp;</i><span>Annually Reporting</span>\n</div>\n\n' + \
@@ -1650,7 +1708,11 @@ export.close()
 if severe:
 	log('Skipping DSsDEFsDEGs.xml due to severe error')
 else:
+<<<<<<< HEAD
 	export = open(outDir + 'DSsDEFsDEGs.xml', 'w')
+=======
+	export = open(outDir + 'datasets.xml', 'w')
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 	export.write(open('codechunks/datasets_before.xml').read())
 
 	export.write('	<dataEntryForms>\n')
@@ -1667,8 +1729,13 @@ else:
 
 	export.write('</metadata>\n')
 	export.close()
+<<<<<<< HEAD
 	z = zipfile.ZipFile(outDir + 'DSsDEFsDEGs.xml.zip', 'w', zipfile.ZIP_DEFLATED)
 	z.write(outDir + 'DSsDEFsDEGs.xml')
+=======
+	z = zipfile.ZipFile(outDir + 'datasets.xml.zip', 'w', zipfile.ZIP_DEFLATED)
+	z.write(outDir + 'datasets.xml')
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
 	z.close()
 
 if not(nofavorites):
@@ -1749,9 +1816,20 @@ if not(noconnection):
 
 getDataElementCadence()
 export = open(outDir + 'dataElementCadence.json', 'w')
+<<<<<<< HEAD
 export.write(json.dumps({'period' : favoritesISOQuarter, 'dataElements': dataElementCadence}, sort_keys=True, indent=2, separators=(',', ': ')))
 export.close()
 
 log('Finished processing control file, exiting normally')
 
 logFile.close()
+=======
+export.write(json.dumps({'period' : favoritesISOQuarter, 'dataElements': dataElementCadence}, sort_keys=True, indent=2, separators=(',', ': '))) 
+export.close()
+
+
+
+log('Finished processing control file, exiting normally')
+
+logFile.close()
+>>>>>>> c5fa1596a93c94079696248257374b28821c0e47
