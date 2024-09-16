@@ -1,7 +1,7 @@
 Copyright (c) 2015-2024, University of Oslo.
 All rights reserved.
 
-Funded and created for PEPFAR by HISP US and BAO Systems for use on PEPFAR DATIM.
+Funded by and created for PEPFAR by BAO Systems, Jim Grace, and Ben Guaraldi for use on PEPFAR DATIM.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
